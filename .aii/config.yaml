@@ -1,0 +1,42 @@
+# AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
+meta:
+  updated: '2026-06-30'
+repo:
+  name: ISSS
+  slug: isss
+  full_name: ActiveInferenceInstitute/ISSS
+  description: ISSS
+institute:
+  category: research-software
+  steward: Active Inference Institute
+ecosystem:
+  relations:
+  - repo: ActiveInferenceInstitute/InstituteOS
+    relation: referenced-by
+    note: Federated via the InstituteOS .aii manifest.
+  - repo: ActiveInferenceInstitute/Active_Inference_Ontology
+    note: Uses Active Inference Ontology terms.
+  links:
+    github: https://github.com/ActiveInferenceInstitute/ISSS
+    website: https://www.activeinference.org
+artifacts:
+- path: README.md
+  kind: doc
+  description: Repository overview.
+- path: LICENSE
+  kind: doc
+  description: License.
+provenance:
+  license: MIT
+  citation:
+    text: Active Inference Institute — ISSS.
+instituteos:
+  tags:
+  - isss
+  - python
+capabilities:
+- documentation
+tasks:
+  inventory:
+    cmd: git ls-files
+    description: List tracked files.

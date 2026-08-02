@@ -1,0 +1,12 @@
+# Runtime dependencies for the ISSS document processing pipeline.
+# Install with:  pip install -r requirements.txt
+#
+# OCR (ocr_processor.py) additionally requires the system Tesseract binary,
+# e.g. `brew install tesseract` (macOS) or `apt install tesseract-ocr`
+# (Debian/Ubuntu).
+
+requests
+beautifulsoup4
+aiohttp
+Pillow
+pytesseract

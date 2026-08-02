@@ -43,6 +43,8 @@ Documentation deep-review pass on `ActiveInferenceInstitute/ISSS`
 - **Robustness**: no request timeouts in `web_scraper.py` /
   `document_downloader.py` — a slow site can hang the pipeline indefinitely.
 
+Findings by severity: 8 Minor, 12 Medium, 1 Major (plus 3 deferred items).
+
 ## Phase 2 — Scope
 
 - Created `TO-DO.md` with Minor / Medium / Major sections and an Open /
@@ -50,8 +52,46 @@ Documentation deep-review pass on `ActiveInferenceInstitute/ISSS`
 
 ## Phase 3 — Implementation
 
-_Completed commits are appended here at the end of the pass._
+Commits (11 + 1 finalization, in order):
+
+| Commit | Subject |
+| --- | --- |
+| `112bcfd` | docs: add TO-DO.md and review log for documentation deep-review pass |
+| `1e510d0` | fix: make main.py pipeline entry point runnable |
+| `b920e35` | fix: download all document types and target the real site |
+| `c047494` | chore: add request timeout and docstring polish |
+| `dabab13` | chore: add requirements.txt with runtime dependencies |
+| `7d28458` | chore: annotate placeholder pipeline modules |
+| `b86545b` | docs: add documentation hub (index, architecture, configuration, implementation status) |
+| `70f20e1` | docs: rewrite README to match repository state |
+| `7b03000` | docs: add contributing and security guides |
+| `a972d88` | chore: ignore pipeline output directories |
+| `b722eb6` | chore: register documentation artifacts in .aii sidecar |
+| (final) | docs: mark completed TO-DO items with commit references |
+
+Validation performed:
+
+- `python3 -m py_compile` on all eight Python modules — pass.
+- `ruff check` on all eight modules — 5 import-sorting findings (3
+  pre-existing), all fixed automatically; no remaining findings.
+- Markdown link/anchor audit (script): 28 links across 9 markdown files,
+  all resolve; all `file.md#anchor` slugs verified against GFM-slugified
+  headings.
+- Live run: throwaway venv (`/tmp/isss-venv`) with `requests`,
+  `beautifulsoup4`, `aiohttp`; `python main.py` from `/tmp` crawled
+  `https://web3.isss.org` (15 pages, depth ≤ 11, 30s per-request cap),
+  found 0 documents (the live site currently exposes no
+  `.pdf/.docx/.pptx/.xlsx` links), exited 0, wrote an empty
+  `archived_documents/metadata.json`. This exercises stages 1-3 end to end
+  and proves the entry point no longer raises.
+- Heavy suites: none exist (no tests, no CI); not run. `pytesseract`/OCR
+  path not executed locally (system Tesseract not installed); the OCR module
+  was verified by compilation and import structure only.
 
 ## Phase 4 — Verification & push
 
-_Appended after the final push._
+- `git status` shows only the intended changes; final tree verified.
+- All TO-DO items marked `[x]` carry the commit reference that implements
+  them; deferred items (placeholder stages, tests/CI, packaging metadata)
+  are listed with reasons.
+- Pushed to `origin/main`; `git status` confirmed up to date after push.

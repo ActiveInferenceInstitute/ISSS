@@ -1,11 +1,11 @@
 # AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
 meta:
-  updated: '2026-06-30'
+  updated: '2026-08-02'
 repo:
   name: ISSS
   slug: isss
   full_name: ActiveInferenceInstitute/ISSS
-  description: ISSS
+  description: Document processing pipeline for the Open ISSS site.
 institute:
   category: research-software
   steward: Active Inference Institute
@@ -26,6 +26,21 @@ artifacts:
 - path: LICENSE
   kind: doc
   description: License.
+- path: docs/
+  kind: doc
+  description: Documentation hub (index, architecture, configuration, implementation status).
+- path: CONTRIBUTING.md
+  kind: doc
+  description: Contribution guide.
+- path: SECURITY.md
+  kind: doc
+  description: Security reporting guidance.
+- path: TO-DO.md
+  kind: doc
+  description: Review findings and improvement roadmap.
+- path: REVIEW_LOG_2026-08-02.md
+  kind: doc
+  description: Documentation deep-review pass log.
 provenance:
   license: MIT
   citation:

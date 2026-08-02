@@ -1,55 +1,69 @@
-import os
-   
-# URLs document for website therape Sc:1  Step #
+"""ISSS document processing pipeline entry point.
 
-_output_analysis_language = '_path_output_analysis_language'
-_outputfigure = '_path_output_figure'
-_outputocr = '_path_output_ocr'
-_documentsconverted = '_path_converted'
-_documentsivedarch = '_path_archive'
-from web_scraper import WebScraper
+Discovers documents on the Open ISSS site (https://web3.isss.org), downloads
+them, and archives their metadata. The remaining pipeline stages (file
+conversion, OCR, figure extraction, language analysis) are not yet
+implemented; see docs/implementation-status.md for the current status of each
+stage.
+
+Run from the repository root:
+
+    python main.py
+
+Configuration lives in the CONFIG block below; see docs/configuration.md.
+"""
+
+import asyncio
+import os
+
+import aiohttp
 from document_downloader import DocumentDownloader
 from metadata_archiver import MetadataArchiver
-from file_converter import FileConverter
-from ocr_processor import OCRProcessor
-from figure_extractor import FigureExtractor
-from language_analyzer import LanguageAnalyzer
+from web_scraper import WebScraper
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+BASE_URL = 'https://web3.isss.org'  # Site to crawl for documents.
+DOWNLOAD_PATH = 'downloaded_documents'  # Where downloaded files are saved.
+ARCHIVE_PATH = 'archived_documents'  # Where metadata.json is written.
+
+# Paths reserved for the pipeline stages that are not yet implemented.
+CONVERTED_PATH = 'converted_documents'
+OCR_OUTPUT_PATH = 'ocr_texts'
+FIGURE_OUTPUT_PATH = 'extracted_figures'
+LANGUAGE_ANALYSIS_OUTPUT_PATH = 'language_analysis'
+
+
+async def _download(urls):
+    """Download every discovered document concurrently."""
+    downloader = DocumentDownloader(BASE_URL, DOWNLOAD_PATH)
+    async with aiohttp.ClientSession() as session:
+        tasks = [downloader.save_document(session, url) for url in urls]
+        await asyncio.gather(*tasks)
+
 
 def main():
-    scraper = WebScraper(base_url)
+    # Step 1: discover document URLs on the site
+    scraper = WebScraper(BASE_URL)
     scraper.start_crawling()
     document_urls = scraper.get_document_urls()
+    print(f'Discovered {len(document_urls)} document(s).')
 
-    # Step 2: Download all documents discovered
-    downloader = DocumentDownloader(base_url, download_path)
-    for url in document_urls:
-        downloader.save_document(url)
+    # Step 2: download all documents discovered
+    asyncio.run(_download(document_urls))
 
-    # Step 3: Archive documents with metadata
-    archiver = MetadataArchiver(archive_path)
+    # Step 3: archive documents with metadata
+    archiver = MetadataArchiver(ARCHIVE_PATH)
     for url in document_urls:
         document_name = url.split('/')[-1]
-        document_path = os.path.join(download_path, document_name)
+        document_path = os.path.join(DOWNLOAD_PATH, document_name)
         archiver.archive_metadata(document_path, url, document_name.split('.')[-1])
 
-    # Step 4: Convert files into clean and scannable versions
-    converter = FileConverter(download_path, converted_path)
-    converter.convert_files()
+    # Steps 4-7 (file conversion, OCR, figure extraction, language analysis)
+    # are not yet implemented; see docs/implementation-status.md.
+    print('Pipeline stages 4-7 (conversion, OCR, figures, language analysis) are not yet implemented.')
 
-    # Step 5: Deploy OCR to extract all text
-    ocr_processor = OCRProcessor(converted_path, ocr_output_path)
-    ocr_processor.process_documents()
-
-    # Step 6: Extract figures with captions
-    figure_extractor = FigureExtractor(converted_path, figure_output_path)
-    figure_extractor.extract_figures()
-
-    # Step 7: Provide descriptive statistics on all language analysis
-    language_analyzer = LanguageAnalyzer(ocr_output_path, language_analysis_output_path)
-    language_analyzer.analyze_language()
 
 if __name__ == '__main__':
     main()
-
-    base_url = 'http://example.com'
-    download_path

@@ -1,9 +1,19 @@
 import os
-from PIL import Image
+
 import pytesseract
+from PIL import Image
+
 
 class OCRProcessor:
+    """Runs OCR on images and saves the extracted text as .txt files."""
+
     def __init__(self, input_path, output_path):
+        """Initializes the OCRProcessor with input and output paths.
+
+        Args:
+            input_path (str): Directory containing the images to process.
+            output_path (str): Directory where extracted text files are saved.
+        """
         self.input_path = input_path
         self.output_path = output_path
         if not os.path.exists(output_path):

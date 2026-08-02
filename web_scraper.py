@@ -1,6 +1,8 @@
+from urllib.parse import urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+
 
 class WebScraper:
     def __init__(self, base_url="https://web3.isss.org"):
@@ -38,7 +40,7 @@ class WebScraper:
         """
         urls = []
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=30)
             soup = BeautifulSoup(response.text, 'html.parser')
             for link in soup.find_all('a', href=True):
                 href = link['href']
@@ -54,6 +56,9 @@ class WebScraper:
         
         Args:
             urls (list): A list of URLs to filter.
+
+        Returns:
+            None: Appends matching URLs to self.document_urls in place.
         """
         doc_extensions = ['.pdf', '.docx', '.pptx', '.xlsx']
         for url in urls:

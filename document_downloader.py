@@ -1,7 +1,9 @@
-import os
-import aiohttp
 import asyncio
+import os
+
+import aiohttp
 from web_scraper import WebScraper  # Import the WebScraper class
+
 
 class DocumentDownloader:
     def __init__(self, base_url, save_path):
@@ -28,12 +30,11 @@ class DocumentDownloader:
     async def download_documents(self):
         self.scraper.start_crawling()
         document_urls = self.scraper.get_document_urls()
-        pdf_urls = [url for url in document_urls if url.endswith('.pdf')]
         async with aiohttp.ClientSession() as session:
-            tasks = [self.save_document(session, url) for url in pdf_urls]
+            tasks = [self.save_document(session, url) for url in document_urls]
             await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
-    downloader = DocumentDownloader('http://example.com', 'downloaded_documents')
+    downloader = DocumentDownloader('https://web3.isss.org', 'downloaded_documents')
     asyncio.run(downloader.download_documents())
 

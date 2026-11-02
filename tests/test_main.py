@@ -1,7 +1,8 @@
-"""Tests for the ``main`` entry point: configuration and stages 1-4 and 7.
+"""Tests for the ``main`` entry point: configuration and stages 1-7.
 
-The scraper, the HTTP session, the downloader, the converter and the analyzer
-are stubbed, so the test runs offline and writes only inside ``tmp_path``.
+The scraper, the HTTP session, the downloader, the converter, the figure
+extractor and the analyzer are stubbed, so the test runs offline and writes
+only inside ``tmp_path``.
 """
 
 import json
@@ -24,6 +25,7 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
     ]
     converter_calls = []
     analyzer_calls = []
+    extractor_calls = []
 
     class StubScraper:
         def __init__(self, base_url, seed_urls=None, max_pages=None):
@@ -58,6 +60,13 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
         def analyze_language(self):
             return {"document_count": 0, "documents": [], "totals": {}}
 
+    class StubExtractor:
+        def __init__(self, converted_path, figure_output_path):
+            extractor_calls.append((converted_path, figure_output_path))
+
+        def extract_figures(self):
+            return {"document_count": 0, "figure_count": 0, "documents": []}
+
     async def stub_save_document(self, session, url):
         os.makedirs(self.save_path, exist_ok=True)
         with open(os.path.join(self.save_path, url.rsplit("/", 1)[-1]), "w") as handle:
@@ -69,6 +78,7 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline.DocumentDownloader, "save_document", stub_save_document)
     monkeypatch.setattr(pipeline, "FileConverter", StubConverter)
     monkeypatch.setattr(pipeline, "LanguageAnalyzer", StubAnalyzer)
+    monkeypatch.setattr(pipeline, "FigureExtractor", StubExtractor)
 
     pipeline.main()
 
@@ -78,6 +88,8 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
     assert sorted(os.listdir(tmp_path / "downloaded_documents")) == ["a.pdf", "b.docx"]
     # Stage 4 runs on the download directory and writes into the configured path.
     assert converter_calls == [(pipeline.DOWNLOAD_PATH, pipeline.CONVERTED_PATH)]
+    # Stage 6 reads the converted pages and writes its own artifact path.
+    assert extractor_calls == [(pipeline.CONVERTED_PATH, pipeline.FIGURE_OUTPUT_PATH)]
     # Stage 7 analyses the text stage 4 wrote and writes its own artifact path.
     assert analyzer_calls == [
         (os.path.join(pipeline.CONVERTED_PATH, "text"), pipeline.LANGUAGE_ANALYSIS_OUTPUT_PATH)

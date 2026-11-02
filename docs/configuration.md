@@ -14,8 +14,8 @@ run `python main.py`.
 | `DOWNLOAD_PATH` | `downloaded_documents` | Where downloaded files are saved. |
 | `ARCHIVE_PATH` | `archived_documents` | Where `metadata.json` is written. |
 | `CONVERTED_PATH` | `converted_documents` | Where the conversion stage writes `text/` and `pages/`. |
-| `OCR_OUTPUT_PATH` | `ocr_texts` | Reserved for the OCR stage. |
-| `FIGURE_OUTPUT_PATH` | `extracted_figures` | Reserved for figure extraction. |
+| `OCR_OUTPUT_PATH` | `ocr_texts` | Used by the standalone OCR demo, not by `main()`. |
+| `FIGURE_OUTPUT_PATH` | `extracted_figures` | Where the extracted figures and `figures.json` are written. |
 | `LANGUAGE_ANALYSIS_OUTPUT_PATH` | `language_analysis` | Where the statistics report and summary are written. |
 
 ## Module parameters
@@ -77,6 +77,21 @@ run `python main.py`.
   [implementation-status.md](implementation-status.md#conversion-contract-stage-4).
 - Requires `PyMuPDF`, `python-docx`, `python-pptx` and `openpyxl`; image-only
   PDF pages additionally need the system Tesseract binary.
+
+### `FigureExtractor` (`figure_extractor.py`)
+
+- Constructor: `FigureExtractor(converted_path, figure_output_path)` — reads
+  `converted_path/pages/` and creates `figure_output_path` if needed.
+- `extract_figures()` — extracts the figures of every document in sorted order
+  and writes `figures.json`; returns the report.
+- `extract_document(document_name)` and
+  `extract_page(page_path, document_name, page_number, first_figure_number=1)`
+  — work on one document or one page; useful on their own for large runs.
+- Module constants: `INK_THRESHOLD`, `MERGE_DISTANCE`, `MIN_FIGURE_SIDE`,
+  `MIN_FIGURE_AREA_RATIO`, `MAX_FIGURE_AREA_RATIO` and `CAPTION_MAX_GAP`. The
+  heuristic and its limits are in
+  [implementation-status.md](implementation-status.md#figure-contract-stage-6).
+- Needs the system Tesseract binary for the caption candidates.
 
 ### `LanguageAnalyzer` (`language_analyzer.py`)
 

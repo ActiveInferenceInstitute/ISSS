@@ -52,6 +52,7 @@ source = [
     "document_downloader",
     "metadata_archiver",
     "file_converter",
+    "figure_extractor",
     "ocr_processor",
     "language_analyzer",
     "main",

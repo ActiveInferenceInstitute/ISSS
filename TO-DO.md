@@ -11,7 +11,8 @@ Status markers: `[x]` completed (with commit reference), `[ ]` open/deferred.
 
 Last reviewed: 2026-08-02 (documentation deep-review pass); discovery and
 source-availability follow-up 2026-11-01; infrastructure (tests, CI,
-packaging) follow-up 2026-11-01; stages 4 and 7 implemented 2026-11-02.
+packaging) follow-up 2026-11-01; all seven pipeline stages implemented
+2026-11-02.
 
 ---
 
@@ -82,10 +83,10 @@ packaging) follow-up 2026-11-01; stages 4 and 7 implemented 2026-11-02.
 
 ## Open / deferred
 
-- [ ] Implement the last placeholder pipeline stage (`figure_extractor.py`) —
-      deferred: this is new functionality beyond a documentation pass; the
-      intended class signature is documented in
-      `docs/implementation-status.md`. Stages 4 and 7 are done — see below.
+- [ ] Extend the pipeline beyond the seven implemented stages (for example a
+      run report that joins `metadata.json`, `figures.json` and
+      `language_analysis.json` into one document record) — deferred: new
+      functionality, not a documentation fix.
 
 ## Completed after the documentation pass
 
@@ -99,3 +100,6 @@ packaging) follow-up 2026-11-01; stages 4 and 7 implemented 2026-11-02.
 - [x] Implement stage 4 (`file_converter.py`): documents convert to
       `text/<name>.txt` and `pages/<name>/page-NNNN.png`, with a Tesseract
       fallback for image-only PDF pages, and `main.py` now runs stages 1-4 — ✓ `e327f80`
+- [x] Implement stage 7 (`language_analyzer.py`): the converted text compiles
+      to `language_analysis.json` and `SUMMARY.md` with per-document and
+      corpus statistics, and `main.py` runs it after stage 4 — ✓ `92fb94a`

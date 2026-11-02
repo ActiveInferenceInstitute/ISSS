@@ -2,13 +2,12 @@
 
 A Python pipeline that discovers documents on the Open ISSS site
 (`https://web3.isss.org`) and the International Society for the Systems
-Sciences site (`https://www.isss.org`), downloads them, and archives their
-metadata for future analysis.
+Sciences site (`https://www.isss.org`), downloads them, archives their
+metadata, and converts, illustrates and analyses them.
 
-The pipeline is designed as seven stages. Four stages are implemented; three
-are placeholders awaiting implementation. See
+The pipeline is designed as seven stages, all of them implemented. See
 [docs/implementation-status.md](docs/implementation-status.md) for the
-current status of every stage.
+artifacts and contracts of every stage.
 
 ## Source availability (checked 2026-11-01)
 
@@ -31,7 +30,7 @@ must be pages that link documents.
 | Metadata Archiver — stores metadata for each downloaded document | `metadata_archiver.py` | Implemented |
 | File Converter — converts documents into text files and page images | `file_converter.py` | Implemented |
 | OCR Processor — extracts text from document images | `ocr_processor.py` | Implemented |
-| Figure Extractor — isolates figures and captions for separate analysis | `figure_extractor.py` | Placeholder |
+| Figure Extractor — extracts figures and caption candidates from page images | `figure_extractor.py` | Implemented |
 | Language Analyzer — compiles descriptive statistics on document text | `language_analyzer.py` | Implemented |
 
 ## Getting Started
@@ -52,7 +51,8 @@ must be pages that link documents.
 Each implemented module can also be run standalone as a demo:
 `python web_scraper.py`, `python document_downloader.py`,
 `python metadata_archiver.py`, `python file_converter.py`,
-`python ocr_processor.py`, `python language_analyzer.py`.
+`python figure_extractor.py`, `python ocr_processor.py`,
+`python language_analyzer.py`.
 
 ## Prerequisites
 
@@ -63,17 +63,17 @@ Each implemented module can also be run standalone as a demo:
   `python-pptx` and `openpyxl` — Word, PowerPoint and Excel text extraction
   (`file_converter.py`).
 - `Pillow` and `pytesseract` plus the system Tesseract binary — OCR
-  (`ocr_processor.py`), also used by the converter for PDF pages whose text
-  layer is empty.
+  (`ocr_processor.py`), the converter's fallback for PDF pages whose text
+  layer is empty, and the caption candidates of the figure extractor.
 - The metadata archiver and the language analyzer use only the standard
   library.
 
 ## Tests
 
-The suite covers the six implemented stages and the `main.py` wiring, and it
+The suite covers all seven implemented stages and the `main.py` wiring, and it
 runs offline: fixture pages come from an in-process server, the HTTP and OCR
-calls are stubbed, and the document fixtures are generated in the test
-directory, so no test needs network access or Tesseract.
+calls are stubbed, and the document, page and figure fixtures are generated in
+the test directory, so no test needs network access or Tesseract.
 
 ```bash
 pip install -e '.[dev]'

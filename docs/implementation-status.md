@@ -40,6 +40,32 @@ directory path alone yields nothing.
 | 6. Figure extraction | `figure_extractor.py` | `FigureExtractor` crops figure-sized regions of each page image to `<document>-fig-NNN.png` and records their caption candidates in `figures.json`. Runnable standalone: `python figure_extractor.py`. See the figure contract below. |
 | 7. Language analysis | `language_analyzer.py` | `LanguageAnalyzer` writes `language_analysis.json` and `SUMMARY.md` for the converted text. Runnable standalone: `python language_analyzer.py`. See the statistics contract below. |
 
+## Live run (2026-11-02)
+
+The pipeline ran on real documents for the first time. Discovery from the
+configured society seeds did not complete — `www.isss.org` refused connections
+intermittently (TCP refusals on ports 443 and 80 at `23.253.128.172`, in both
+the pipeline client and `curl`, independent of User-Agent), and the reachable
+front end links no documents — so stages 2-7 ran on two real proceedings
+articles from the society's journal host (`journals.isss.org`), 14 and 16
+pages, supplied as URLs.
+
+| Measurement | Result |
+| --- | --- |
+| Wall clock, exit code | 76 s, 0 |
+| Artifacts | `metadata.json`, 2 text files, 30 page images at 150 DPI, `figures.json`, `language_analysis.json`, `SUMMARY.md` |
+| Text | 12,354 words, 2,692 unique, 732 sentences, 5.45 characters per word, 16.32 words per sentence |
+
+The run exposed the two defects that the download and figure contracts record:
+stage 6 reported paragraph blocks as figures (118 of 118 candidates; the
+coverage test rejects them and 5 figures with real captions remain), and stage
+2 saved an extension-less galley URL as `7584`, which stage 4 then skipped.
+
+Still open: the crawl spends its page budget on front-end fragment and utility
+URLs (`#content`, `#respond`, `wp-login.php`), so a small `MAX_PAGES` never
+reaches the second seed. Fragment handling and seed-fair budgeting are not
+implemented.
+
 ## Download contract (stage 2)
 
 `DocumentDownloader` downloads every discovered URL concurrently into the

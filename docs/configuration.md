@@ -10,7 +10,7 @@ run `python main.py`.
 | --- | --- | --- |
 | `BASE_URL` | `https://web3.isss.org` | Base URL of the Open ISSS site. |
 | `SEED_URLS` | `BASE_URL`, `https://www.isss.org/`, `https://www.isss.org/annual-meetings/` | Pages the discovery crawl starts from. The `web3.isss.org` front end alone links no documents; the society site links the corpus, including legacy paths on `web3.isss.org`. |
-| `MAX_PAGES` | `250` | Upper bound on pages fetched in one discovery run, so a run stays finite. |
+| `MAX_PAGES` | `250` | Total pages fetched in one discovery run, across every seed, so a run stays finite. |
 | `DOWNLOAD_PATH` | `downloaded_documents` | Where downloaded files are saved. |
 | `ARCHIVE_PATH` | `archived_documents` | Where `metadata.json` is written. |
 | `CONVERTED_PATH` | `converted_documents` | Where the conversion stage writes `text/` and `pages/`. |
@@ -25,18 +25,28 @@ run `python main.py`.
 - Constructor:
   `WebScraper(base_url='https://web3.isss.org', seed_urls=None, max_pages=None)`.
   `seed_urls` defaults to `[base_url]`; `max_pages` defaults to `None`
-  (unbounded) and stops the crawl once the budget is used up.
-- `start_crawling(max_depth=11)` — crawls from every seed in turn, with the
-  given depth limit per seed.
-- `crawl(url, depth=0, max_depth=11)` — recursive crawl step, also bounded by
-  `max_pages`.
+  (unbounded) and is the total page budget for the run, across every seed.
+- `start_crawling(max_depth=11)` — crawls every seed, giving each seed's queue
+  one page per turn (round-robin) so the first seed cannot spend the whole
+  budget before the others are reached.
+- `crawl(url, depth=0, max_depth=11)` — the single-URL entry point: it spends
+  the remaining budget on one seed's queue, breadth-first.
+- `normalise_url(url)` — drops the fragment, lowercases the scheme and host,
+  removes a default port and the session and tracking parameters, and returns
+  `''` for a URL that cannot be fetched. Links that normalise alike are one URL.
+- `is_document_url(url)` / `is_crawl_utility(url)` — the extension test for
+  documents and the site-machinery test (login, admin, feed, search, reply and
+  REST endpoints) that keeps them out of the crawl queue.
 - `is_valid_url(url)` — a URL is valid when it has a scheme and netloc and
   the netloc ends with `isss.org`, so both `web3.isss.org` and
   `www.isss.org` links are followed.
 - Recognized document extensions: `.pdf`, `.docx`, `.pptx`, `.xlsx`
-  (`filter_documents`).
+  (`filter_documents`, `is_document_url`), matched after normalization so a
+  `report.pdf#page=2` link is still recorded.
 - Page requests use a 30-second timeout; a failing page is reported and the
   crawl continues.
+- The full rules are in
+  [implementation-status.md](implementation-status.md#discovery-contract-stage-1).
 
 ### `DocumentDownloader` (`document_downloader.py`)
 

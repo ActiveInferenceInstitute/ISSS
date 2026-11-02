@@ -6,13 +6,13 @@ from web_scraper import WebScraper  # Import the WebScraper class
 
 
 class DocumentDownloader:
-    def __init__(self, base_url, save_path):
+    def __init__(self, base_url, save_path, seed_urls=None, max_pages=None):
         self.base_url = base_url
         self.save_path = save_path
         # Ensure the save path exists
         os.makedirs(save_path, exist_ok=True)
         # Initialize the WebScraper
-        self.scraper = WebScraper(base_url)
+        self.scraper = WebScraper(base_url, seed_urls=seed_urls, max_pages=max_pages)
 
     async def save_document(self, session, url):
         filename = url.split('/')[-1]
@@ -35,6 +35,13 @@ class DocumentDownloader:
             await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
-    downloader = DocumentDownloader('https://web3.isss.org', 'downloaded_documents')
+    # Bounded demo run: the society site links the document paths, the web3
+    # front end alone exposes none.
+    downloader = DocumentDownloader(
+        'https://web3.isss.org',
+        'downloaded_documents',
+        seed_urls=['https://web3.isss.org', 'https://www.isss.org/annual-meetings/'],
+        max_pages=25,
+    )
     asyncio.run(downloader.download_documents())
 

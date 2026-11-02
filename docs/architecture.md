@@ -1,10 +1,17 @@
 # Pipeline Architecture
 
 The ISSS repository implements a document processing pipeline that discovers
-documents on the Open ISSS website (`https://web3.isss.org`), downloads them,
-and archives their metadata. The pipeline is designed as seven stages; four
-are implemented and three are placeholders (see
-[implementation-status.md](implementation-status.md) for the details).
+documents on the Open ISSS site (`https://web3.isss.org`) and the society site
+(`https://www.isss.org`), downloads them, and archives their metadata. The
+pipeline is designed as seven stages; four are implemented and three are
+placeholders (see [implementation-status.md](implementation-status.md) for the
+details).
+
+Discovery starts from the configured seeds rather than from a single URL: the
+`web3.isss.org` front end is a WordPress incubation site that links no
+documents, while the society site links the corpus, including legacy paths on
+`web3.isss.org` (see the source-availability note in
+[implementation-status.md](implementation-status.md)).
 
 ## Stages
 
@@ -20,9 +27,10 @@ are implemented and three are placeholders (see
 
 ## Data flow
 
-1. **Web scraping** — `WebScraper` crawls from the base URL, following
-   same-domain links up to `max_depth` (default 11), and collects URLs ending
-   in `.pdf`, `.docx`, `.pptx`, or `.xlsx`.
+1. **Web scraping** — `WebScraper` crawls from each configured seed
+   (`SEED_URLS`), following same-domain links (`*.isss.org`) up to `max_depth`
+   (default 11) and at most `MAX_PAGES` pages per run, and collects URLs
+   ending in `.pdf`, `.docx`, `.pptx`, or `.xlsx`.
 2. **Document download** — `DocumentDownloader` downloads each discovered URL
    into the download directory in 1 KiB chunks, skipping files that already
    exist.
@@ -46,7 +54,9 @@ are implemented and three are placeholders (see
   CONFIG block at the top of `main.py`; see [configuration.md](configuration.md).
 - Each implemented module can also be run standalone with its own demo:
   `python web_scraper.py`, `python document_downloader.py`,
-  `python metadata_archiver.py`, `python ocr_processor.py`.
+  `python metadata_archiver.py`, `python ocr_processor.py`. The scraper and
+  downloader demos use a small seed list and a page budget, so a demo run
+  stays bounded.
 
 ## Directory conventions
 

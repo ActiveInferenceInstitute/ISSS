@@ -1,13 +1,26 @@
 # ISSS — Document Processing Pipeline
 
-A Python pipeline that discovers documents on the Open ISSS website
-(`https://web3.isss.org`), downloads them, and archives their metadata for
-future analysis.
+A Python pipeline that discovers documents on the Open ISSS site
+(`https://web3.isss.org`) and the International Society for the Systems
+Sciences site (`https://www.isss.org`), downloads them, and archives their
+metadata for future analysis.
 
 The pipeline is designed as seven stages. Four stages are implemented; three
 are placeholders awaiting implementation. See
 [docs/implementation-status.md](docs/implementation-status.md) for the
 current status of every stage.
+
+## Source availability (checked 2026-11-01)
+
+The `web3.isss.org` front end is a WordPress incubation site: its sitemaps
+list three URLs and its pages link no documents, so a crawl from that URL
+alone discovers nothing. The corpus remains reachable — the society site
+links documents, including legacy paths on `web3.isss.org` such as
+`https://web3.isss.org/proceedings/2008_ISSS_Proceedings_from_CD.pdf`
+(HTTP 200, 52,882,005 bytes). Discovery therefore starts from the seeds in
+`SEED_URLS` rather than from the front end alone. Directory listings under the
+legacy paths are not browsable (`/proceedings/` returns HTTP 403), so seeds
+must be pages that link documents.
 
 ## Pipeline Components
 
@@ -28,8 +41,9 @@ current status of every stage.
    system Tesseract binary (e.g. `brew install tesseract` on macOS,
    `apt install tesseract-ocr` on Debian/Ubuntu).
 2. **Configuration**: Adjust the CONFIG block at the top of `main.py`,
-   including `BASE_URL`, `DOWNLOAD_PATH`, and the other output paths. See
-   [docs/configuration.md](docs/configuration.md) for the full reference.
+   including `BASE_URL`, `SEED_URLS`, `MAX_PAGES`, `DOWNLOAD_PATH`, and the
+   other output paths. See [docs/configuration.md](docs/configuration.md) for
+   the full reference.
 3. **Run the Pipeline**: Initiate the implemented stages with
    `python main.py`.
 

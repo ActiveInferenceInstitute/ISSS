@@ -106,3 +106,15 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
 - [x] Implement stage 6 (`figure_extractor.py`): each page image yields
       `<document>-fig-NNN.png` crops with their caption candidates in
       `figures.json`, and `main.py` now runs all seven stages — ✓ `21e350c`
+- [x] Run the pipeline on real documents (first live run): stages 2-7 over two
+      proceedings articles from `journals.isss.org` (14 and 16 pages), 76 s wall
+      clock, exit 0; recorded in `docs/implementation-status.md` and the
+      workstream report — ✓ `a29747a`
+- [x] Fix stage 6 on that run: a candidate whose box is covered at least 15% by
+      the page's Tesseract word boxes is text, not a figure, so the two
+      articles that produced 118 paragraph "figures" now produce 5 figures with
+      their real captions — ✓ `58dee20`, merged as `0a8c2f9`
+- [x] Fix stage 2 on that run: an extension-less document URL is saved with the
+      extension its response `Content-Type` implies, so the journal galley that
+      stage 4 dropped as `7584` now converts as `7584.pdf` — ✓ `ab5432e`,
+      merged as `a29747a`

@@ -33,12 +33,38 @@ directory path alone yields nothing.
 | Stage | Module | Notes |
 | --- | --- | --- |
 | 1. Web scraping | `web_scraper.py` | `WebScraper` crawls from the configured seeds and collects document URLs. Runnable standalone: `python web_scraper.py`. |
-| 2. Document download | `document_downloader.py` | `DocumentDownloader` downloads the discovered URLs concurrently. Runnable standalone: `python document_downloader.py`. |
+| 2. Document download | `document_downloader.py` | `DocumentDownloader` downloads the discovered URLs concurrently. Runnable standalone: `python document_downloader.py`. See the download contract below. |
 | 3. Metadata archiving | `metadata_archiver.py` | `MetadataArchiver` appends records to `metadata.json`. Runnable standalone: `python metadata_archiver.py`. |
 | 4. File conversion | `file_converter.py` | `FileConverter` writes `text/<name>.txt` and `pages/<name>/page-NNNN.png` per document. Runnable standalone: `python file_converter.py`. See the conversion contract below. |
 | 5. OCR | `ocr_processor.py` | `OCRProcessor` extracts text from `.jpg` images. Runnable standalone: `python ocr_processor.py`. Outside `main.py`: the pipeline emits text and PNG pages, and OCR is applied inside stage 4 to PDF pages whose text layer is empty. |
 | 6. Figure extraction | `figure_extractor.py` | `FigureExtractor` crops figure-sized regions of each page image to `<document>-fig-NNN.png` and records their caption candidates in `figures.json`. Runnable standalone: `python figure_extractor.py`. See the figure contract below. |
 | 7. Language analysis | `language_analyzer.py` | `LanguageAnalyzer` writes `language_analysis.json` and `SUMMARY.md` for the converted text. Runnable standalone: `python language_analyzer.py`. See the statistics contract below. |
+
+## Download contract (stage 2)
+
+`DocumentDownloader` downloads every discovered URL concurrently into the
+download directory. It returns the file name it wrote (or found already
+there), so the archive step records the file that is actually on disk:
+
+| Case | File name |
+| --- | --- |
+| The URL path's last segment carries a document extension | that segment (`a.pdf`) |
+| The URL path carries none (`…/article/download/1766/611/7584`) | the segment plus the extension the response `Content-Type` implies (`7584.pdf`) |
+| No extension and an unconverted content type | the segment unchanged (`7584`); stage 4 then reports it as unsupported |
+
+Decisions this contract fixes:
+
+- The name is the last segment of the URL *path*: a query string or fragment
+  cannot leak into it, so `…/a.pdf?download=1#page=2` is saved as `a.pdf`, and
+  a percent-encoded name is decoded.
+- A URL that ends in a slash falls back to `document`.
+- A file that already exists is not downloaded again, and its name is returned.
+- The content-type mapping covers only the formats the later stages convert —
+  `application/pdf` and the three Open XML types. An unknown type is not
+  guessed, so an unconverted file keeps its extension-less name and stage 4
+  reports it, which is visible rather than silent.
+- The rule comes from the first live run: the OJS galley URL above was saved as
+  `7584` and then skipped by stage 4's extension filter.
 
 ## Conversion contract (stage 4)
 

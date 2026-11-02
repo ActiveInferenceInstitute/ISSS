@@ -22,8 +22,9 @@ class _FakeContent:
 
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, content_type=None):
         self.content = _FakeContent(payload)
+        self.headers = {} if content_type is None else {"Content-Type": content_type}
 
     async def __aenter__(self):
         return self
@@ -35,8 +36,9 @@ class _FakeResponse:
 class _FakeSession:
     """Records requested URLs and returns the configured payload."""
 
-    def __init__(self, payload=b"document-bytes"):
+    def __init__(self, payload=b"document-bytes", content_type=None):
         self.payload = payload
+        self.content_type = content_type
         self.requested = []
 
     async def __aenter__(self):
@@ -47,17 +49,66 @@ class _FakeSession:
 
     def get(self, url):
         self.requested.append(url)
-        return _FakeResponse(self.payload)
+        return _FakeResponse(self.payload, self.content_type)
 
 
 def test_save_document_writes_the_payload(tmp_path):
     downloader = DocumentDownloader("https://web3.isss.org", str(tmp_path))
     session = _FakeSession(payload=b"proceedings")
 
-    asyncio.run(downloader.save_document(session, "https://web3.isss.org/proceedings/a.pdf"))
+    name = asyncio.run(
+        downloader.save_document(session, "https://web3.isss.org/proceedings/a.pdf")
+    )
 
     assert session.requested == ["https://web3.isss.org/proceedings/a.pdf"]
+    assert name == "a.pdf"
     assert (tmp_path / "a.pdf").read_bytes() == b"proceedings"
+
+
+def test_document_filename_keeps_the_last_path_segment(tmp_path):
+    url = "https://web3.isss.org/proceedings/a%20b.pdf?download=1#page=2"
+
+    assert DocumentDownloader.document_filename(url) == "a b.pdf"
+
+
+def test_document_filename_falls_back_for_a_directory_url():
+    assert DocumentDownloader.document_filename("https://web3.isss.org/proceedings/") == "document"
+
+
+def test_save_document_names_an_extension_less_url_from_the_content_type(tmp_path):
+    """A journal galley URL ends in an id; the response says what the file is."""
+    url = "https://journals.isss.org/index.php/proceedings56th/article/download/1766/611/7584"
+    downloader = DocumentDownloader("https://journals.isss.org", str(tmp_path))
+    session = _FakeSession(payload=b"%PDF-1.7", content_type="application/pdf")
+
+    name = asyncio.run(downloader.save_document(session, url))
+
+    assert name == "7584.pdf"
+    assert (tmp_path / "7584.pdf").read_bytes() == b"%PDF-1.7"
+
+
+def test_save_document_keeps_a_known_extension_despite_the_content_type(tmp_path):
+    """A server that mislabels a PDF must not produce ``a.pdf.bin`` or similar."""
+    downloader = DocumentDownloader("https://web3.isss.org", str(tmp_path))
+    session = _FakeSession(payload=b"payload", content_type="text/html; charset=utf-8")
+
+    name = asyncio.run(
+        downloader.save_document(session, "https://web3.isss.org/proceedings/a.pdf")
+    )
+
+    assert name == "a.pdf"
+    assert sorted(os.listdir(tmp_path)) == ["a.pdf"]
+
+
+def test_with_content_type_extension_leaves_unknown_types_alone():
+    assert DocumentDownloader.with_content_type_extension("7584", None) == "7584"
+    assert DocumentDownloader.with_content_type_extension("7584", "text/plain") == "7584"
+    assert DocumentDownloader.with_content_type_extension(
+        "7584", "APPLICATION/PDF; charset=binary"
+    ) == "7584.pdf"
+    assert DocumentDownloader.with_content_type_extension(
+        "deck.PPTX", "application/pdf"
+    ) == "deck.PPTX"
 
 
 def test_save_document_skips_an_existing_file(tmp_path):
@@ -66,8 +117,11 @@ def test_save_document_skips_an_existing_file(tmp_path):
     downloader = DocumentDownloader("https://web3.isss.org", str(tmp_path))
     session = _FakeSession(payload=b"replacement")
 
-    asyncio.run(downloader.save_document(session, "https://web3.isss.org/proceedings/a.pdf"))
+    name = asyncio.run(
+        downloader.save_document(session, "https://web3.isss.org/proceedings/a.pdf")
+    )
 
+    assert name == "a.pdf"
     assert session.requested == []
     assert existing.read_bytes() == b"already-here"
 

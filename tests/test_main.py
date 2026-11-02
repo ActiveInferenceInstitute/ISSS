@@ -22,6 +22,9 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
     urls = [
         "https://web3.isss.org/proceedings/a.pdf",
         "https://web3.isss.org/proceedings/b.docx",
+        # A journal platform URL whose last segment carries no extension: the
+        # downloader names it from the response content type.
+        "https://journals.isss.org/index.php/proceedings56th/article/download/1766/611/7584",
     ]
     converter_calls = []
     analyzer_calls = []
@@ -68,9 +71,13 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
             return {"document_count": 0, "figure_count": 0, "documents": []}
 
     async def stub_save_document(self, session, url):
+        name = pipeline.DocumentDownloader.with_content_type_extension(
+            pipeline.DocumentDownloader.document_filename(url), "application/pdf"
+        )
         os.makedirs(self.save_path, exist_ok=True)
-        with open(os.path.join(self.save_path, url.rsplit("/", 1)[-1]), "w") as handle:
+        with open(os.path.join(self.save_path, name), "w") as handle:
             handle.write("payload")
+        return name
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(pipeline, "WebScraper", StubScraper)
@@ -83,9 +90,15 @@ def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
     pipeline.main()
 
     metadata = json.loads((tmp_path / "archived_documents" / "metadata.json").read_text())
-    assert [record["document_name"] for record in metadata] == ["a.pdf", "b.docx"]
-    assert [record["document_type"] for record in metadata] == ["pdf", "docx"]
-    assert sorted(os.listdir(tmp_path / "downloaded_documents")) == ["a.pdf", "b.docx"]
+    # The archive step records the names the downloader reported, so a URL
+    # without an extension is archived under the name it was downloaded as.
+    assert [record["document_name"] for record in metadata] == ["a.pdf", "b.docx", "7584.pdf"]
+    assert [record["document_type"] for record in metadata] == ["pdf", "docx", "pdf"]
+    assert sorted(os.listdir(tmp_path / "downloaded_documents")) == [
+        "7584.pdf",
+        "a.pdf",
+        "b.docx",
+    ]
     # Stage 4 runs on the download directory and writes into the configured path.
     assert converter_calls == [(pipeline.DOWNLOAD_PATH, pipeline.CONVERTED_PATH)]
     # Stage 6 reads the converted pages and writes its own artifact path.

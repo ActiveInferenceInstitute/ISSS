@@ -52,11 +52,16 @@ OCR_OUTPUT_PATH = 'ocr_texts'
 
 
 async def _download(urls):
-    """Download every discovered document concurrently."""
+    """Download every discovered document concurrently.
+
+    Returns the file names the documents were saved under, in URL order, so the
+    archive step records the files that were actually written rather than a name
+    derived again from the URL.
+    """
     downloader = DocumentDownloader(BASE_URL, DOWNLOAD_PATH)
     async with aiohttp.ClientSession() as session:
         tasks = [downloader.save_document(session, url) for url in urls]
-        await asyncio.gather(*tasks)
+        return await asyncio.gather(*tasks)
 
 
 def main():
@@ -67,12 +72,11 @@ def main():
     print(f'Discovered {len(document_urls)} document(s).')
 
     # Step 2: download all documents discovered
-    asyncio.run(_download(document_urls))
+    document_names = asyncio.run(_download(document_urls))
 
     # Step 3: archive documents with metadata
     archiver = MetadataArchiver(ARCHIVE_PATH)
-    for url in document_urls:
-        document_name = url.split('/')[-1]
+    for url, document_name in zip(document_urls, document_names):
         document_path = os.path.join(DOWNLOAD_PATH, document_name)
         archiver.archive_metadata(document_path, url, document_name.split('.')[-1])
 

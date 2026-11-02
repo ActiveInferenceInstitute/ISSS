@@ -1,8 +1,8 @@
 # Tests
 
-The suite covers the four implemented pipeline stages (`web_scraper.py`,
-`document_downloader.py`, `metadata_archiver.py`, `ocr_processor.py`) and the
-`main.py` wiring of stages 1-3.
+The suite covers the five implemented pipeline stages (`web_scraper.py`,
+`document_downloader.py`, `metadata_archiver.py`, `file_converter.py`,
+`ocr_processor.py`) and the `main.py` wiring of stages 1-4.
 
 ```bash
 pip install -e '.[dev]'
@@ -23,7 +23,12 @@ No test performs a live network request or needs the system Tesseract binary:
 - `tests/test_document_downloader.py` and `tests/test_main.py` replace the
   `aiohttp` session and the downloader with stubs.
 - `tests/test_ocr_processor.py` replaces `pytesseract.image_to_string` with a
-  stub, so the OCR stage is exercised without Tesseract installed.
+  stub, so the OCR stage is exercised without Tesseract installed; the same
+  stub covers the converter's OCR fallback for image-only PDF pages.
+- `tests/test_file_converter.py` generates its PDF, Word, PowerPoint and Excel
+  fixtures in `tmp_path` with the pipeline's own libraries, so no document
+  fixtures are committed.
 
 Fixtures are generated in `tmp_path`; the suite never touches the real
-`downloaded_documents/`, `archived_documents/` or `ocr_texts/` directories.
+`downloaded_documents/`, `archived_documents/`, `converted_documents/` or
+`ocr_texts/` directories.

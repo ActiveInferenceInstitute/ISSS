@@ -16,6 +16,10 @@ dependencies = [
     "aiohttp",
     "Pillow",
     "pytesseract",
+    "PyMuPDF",
+    "python-docx",
+    "python-pptx",
+    "openpyxl",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +51,7 @@ source = [
     "web_scraper",
     "document_downloader",
     "metadata_archiver",
+    "file_converter",
     "ocr_processor",
     "main",
 ]

@@ -1,7 +1,7 @@
-"""Tests for the ``main`` entry point: configuration and stages 1-3 wiring.
+"""Tests for the ``main`` entry point: configuration and stages 1-4 wiring.
 
-The scraper, the HTTP session and the downloader are stubbed, so the test runs
-offline and writes only inside ``tmp_path``.
+The scraper, the HTTP session, the downloader and the converter are stubbed,
+so the test runs offline and writes only inside ``tmp_path``.
 """
 
 import json
@@ -17,11 +17,12 @@ def test_seed_urls_start_from_link_bearing_pages():
     assert pipeline.MAX_PAGES > 0
 
 
-def test_main_discovers_downloads_and_archives(tmp_path, monkeypatch):
+def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
     urls = [
         "https://web3.isss.org/proceedings/a.pdf",
         "https://web3.isss.org/proceedings/b.docx",
     ]
+    converter_calls = []
 
     class StubScraper:
         def __init__(self, base_url, seed_urls=None, max_pages=None):
@@ -42,6 +43,13 @@ def test_main_discovers_downloads_and_archives(tmp_path, monkeypatch):
         async def __aexit__(self, *exc_info):
             return False
 
+    class StubConverter:
+        def __init__(self, download_path, converted_path):
+            converter_calls.append((download_path, converted_path))
+
+        def convert_files(self):
+            return [{"document_name": "a.pdf", "page_count": 1, "characters": 7}]
+
     async def stub_save_document(self, session, url):
         os.makedirs(self.save_path, exist_ok=True)
         with open(os.path.join(self.save_path, url.rsplit("/", 1)[-1]), "w") as handle:
@@ -51,6 +59,7 @@ def test_main_discovers_downloads_and_archives(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "WebScraper", StubScraper)
     monkeypatch.setattr(pipeline.aiohttp, "ClientSession", StubSession)
     monkeypatch.setattr(pipeline.DocumentDownloader, "save_document", stub_save_document)
+    monkeypatch.setattr(pipeline, "FileConverter", StubConverter)
 
     pipeline.main()
 
@@ -58,3 +67,5 @@ def test_main_discovers_downloads_and_archives(tmp_path, monkeypatch):
     assert [record["document_name"] for record in metadata] == ["a.pdf", "b.docx"]
     assert [record["document_type"] for record in metadata] == ["pdf", "docx"]
     assert sorted(os.listdir(tmp_path / "downloaded_documents")) == ["a.pdf", "b.docx"]
+    # Stage 4 runs on the download directory and writes into the configured path.
+    assert converter_calls == [(pipeline.DOWNLOAD_PATH, pipeline.CONVERTED_PATH)]

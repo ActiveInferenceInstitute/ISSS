@@ -29,7 +29,7 @@ must be pages that link documents.
 | Web Scraper — collects document URLs from targeted pages | `web_scraper.py` | Implemented |
 | Document Downloader — asynchronous downloading of discovered documents | `document_downloader.py` | Implemented |
 | Metadata Archiver — stores metadata for each downloaded document | `metadata_archiver.py` | Implemented |
-| File Converter — transforms documents into a uniform format | `file_converter.py` | Placeholder |
+| File Converter — converts documents into text files and page images | `file_converter.py` | Implemented |
 | OCR Processor — extracts text from document images | `ocr_processor.py` | Implemented |
 | Figure Extractor — isolates figures and captions for separate analysis | `figure_extractor.py` | Placeholder |
 | Language Analyzer — compiles descriptive statistics on document text | `language_analyzer.py` | Placeholder |
@@ -51,22 +51,28 @@ must be pages that link documents.
 
 Each implemented module can also be run standalone as a demo:
 `python web_scraper.py`, `python document_downloader.py`,
-`python metadata_archiver.py`, `python ocr_processor.py`.
+`python metadata_archiver.py`, `python file_converter.py`,
+`python ocr_processor.py`.
 
 ## Prerequisites
 
 - Python 3.12 or newer (declared in `pyproject.toml`).
 - `requests` and `beautifulsoup4` — web scraping (`web_scraper.py`).
 - `aiohttp` — asynchronous downloads (`document_downloader.py`).
+- `PyMuPDF` — PDF text extraction and page rendering, and `python-docx`,
+  `python-pptx` and `openpyxl` — Word, PowerPoint and Excel text extraction
+  (`file_converter.py`).
 - `Pillow` and `pytesseract` plus the system Tesseract binary — OCR
-  (`ocr_processor.py`).
+  (`ocr_processor.py`), also used by the converter for PDF pages whose text
+  layer is empty.
 - The metadata archiver uses only the standard library.
 
 ## Tests
 
-The suite covers the four implemented stages and the `main.py` wiring, and it
-runs offline: fixture pages come from an in-process server and the HTTP and OCR
-calls are stubbed, so no test needs network access or Tesseract.
+The suite covers the five implemented stages and the `main.py` wiring, and it
+runs offline: fixture pages come from an in-process server, the HTTP and OCR
+calls are stubbed, and the document fixtures are generated in the test
+directory, so no test needs network access or Tesseract.
 
 ```bash
 pip install -e '.[dev]'

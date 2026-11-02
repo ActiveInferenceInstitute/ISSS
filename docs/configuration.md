@@ -13,7 +13,7 @@ run `python main.py`.
 | `MAX_PAGES` | `250` | Upper bound on pages fetched in one discovery run, so a run stays finite. |
 | `DOWNLOAD_PATH` | `downloaded_documents` | Where downloaded files are saved. |
 | `ARCHIVE_PATH` | `archived_documents` | Where `metadata.json` is written. |
-| `CONVERTED_PATH` | `converted_documents` | Reserved for the file-conversion stage. |
+| `CONVERTED_PATH` | `converted_documents` | Where the conversion stage writes `text/` and `pages/`. |
 | `OCR_OUTPUT_PATH` | `ocr_texts` | Reserved for the OCR stage. |
 | `FIGURE_OUTPUT_PATH` | `extracted_figures` | Reserved for figure extraction. |
 | `LANGUAGE_ANALYSIS_OUTPUT_PATH` | `language_analysis` | Reserved for language analysis. |
@@ -62,6 +62,21 @@ run `python main.py`.
 | `source_url` | Source URL the document was downloaded from. |
 | `document_type` | File extension (e.g. `pdf`, `docx`). |
 | `download_date` | Timestamp, format `YYYY-MM-DD HH:MM:SS`. |
+
+### `FileConverter` (`file_converter.py`)
+
+- Constructor: `FileConverter(download_path, converted_path)` — creates
+  `converted_path/text/` and `converted_path/pages/` if needed.
+- `convert_files()` — converts every `.pdf`, `.docx`, `.pptx` and `.xlsx` file
+  in `download_path`, in sorted name order, and returns one record per
+  converted document (`document_name`, `page_count`, `characters`).
+- `convert_document(document_path)` — converts one document; returns `None`
+  and reports the failure when the document cannot be read.
+- Module constants: `DOCUMENT_EXTENSIONS`, `PDF_DPI` (150) and
+  `PAGE_SEPARATOR` (`\f`). The artifact contract is in
+  [implementation-status.md](implementation-status.md#conversion-contract-stage-4).
+- Requires `PyMuPDF`, `python-docx`, `python-pptx` and `openpyxl`; image-only
+  PDF pages additionally need the system Tesseract binary.
 
 ### `OCRProcessor` (`ocr_processor.py`)
 

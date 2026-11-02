@@ -81,26 +81,42 @@ across the pages of one document) into the figure output directory, plus a
 | `bbox` | The figure's source box on the page, in page pixels, right and bottom edges exclusive. |
 | `caption_candidate`, `caption_bbox` | The nearest text block's text and box, or `null` when no block is close enough. |
 
+Each document entry also reports how many regions were skipped:
+`skipped_page_sized_regions` (whole-page scans) and `skipped_text_regions`
+(dense text blocks).
+
 Decisions this contract fixes:
 
 - Detection runs on the rendered page and needs no source-document layout: the
   page is binarized (ink below a grayscale threshold) and connected components
   are built with a run-length sweep, then merged when their boxes are within a
   few pixels.
-- A component becomes a figure when both sides of its box reach a minimum size
-  and its box covers between 3% and 80% of the page. That excludes text lines
-  (too thin) and whole-page scans (too large); page-sized regions are counted
-  in the report instead of being cropped.
+- A component becomes a candidate when both sides of its box reach a minimum
+  size and its box covers between 3% and 80% of the page. That excludes text
+  lines (too thin) and whole-page scans (too large); page-sized regions are
+  counted in the report instead of being cropped.
+- A candidate whose box is covered at least 15% by the word boxes Tesseract
+  reports for the page is text, not a figure, and is counted in
+  `skipped_text_regions` instead of being cropped. This test was added after
+  the first live run: dense paragraph blocks pass the size and area tests, and
+  on real proceedings pages they carry 0.5-0.6 of their box covered by
+  recognized words while figures carry 0.06-0.18, so coverage is what
+  separates the two. Before it, a 14-page and a 16-page article yielded 118
+  "figures" that were all paragraphs, with the prose beside them reported as
+  their captions; with it, 5 figures remain and their captions are the real
+  ones (`Figure 1. From knowledge vision to organisational performance`,
+  `Figure 2. A holistic knowledge scope`,
+  `Figure 4. Triad of organizational manageable (based on Leonard-Barton, 1992)`).
 - The caption candidate is the text block nearest to the figure box, measured
   as the vertical gap of blocks that overlap the figure horizontally, with
   blocks below the figure preferred when two are equally close.
 - A figure without a candidate within the gap limit is still written, with
   `caption_candidate: null`, so an ambiguous case stays visible rather than
   being dropped.
-- The caption text comes from Tesseract's word boxes for the page, so the
-  stage needs the system Tesseract binary and inherits its recognition
-  accuracy; a caption split across two detected blocks is reported as the
-  block nearest the figure.
+- The caption text and the coverage test both come from Tesseract's word boxes
+  for the page, so the stage needs the system Tesseract binary and inherits its
+  recognition accuracy; a caption split across two detected blocks is reported
+  as the block nearest the figure.
 
 ## Statistics contract (stage 7)
 

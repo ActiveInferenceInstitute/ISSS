@@ -101,7 +101,7 @@ def test_extract_page_writes_the_figure_crop_and_its_caption(tmp_path, monkeypat
 
     records, skipped = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
 
-    assert skipped == 0
+    assert skipped == {'page_sized_regions': 0, 'text_regions': 0}
     assert records == [
         {
             "figure": "proceedings-fig-001.png",
@@ -127,7 +127,7 @@ def test_small_marks_and_text_lines_are_not_figures(tmp_path, monkeypatch):
     records, skipped = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
 
     assert records == []
-    assert skipped == 0
+    assert skipped == {'page_sized_regions': 0, 'text_regions': 0}
     assert list((tmp_path / "extracted_figures").iterdir()) == []
 
 
@@ -139,7 +139,7 @@ def test_page_sized_region_is_counted_and_not_cropped(tmp_path):
     records, skipped = _extractor(tmp_path).extract_page(str(page_path), "scan", 1)
 
     assert records == []
-    assert skipped == 1
+    assert skipped == {'page_sized_regions': 1, 'text_regions': 0}
     assert list((tmp_path / "extracted_figures").iterdir()) == []
 
 
@@ -159,6 +159,7 @@ def test_figures_are_numbered_in_reading_order_across_pages(tmp_path, monkeypatc
     assert [figure["page"] for figure in document["figures"]] == [1, 1, 2]
     assert document["figures"][0]["bbox"] == {"left": 350, "top": 100, "right": 500, "bottom": 300}
     assert document["skipped_page_sized_regions"] == 0
+    assert document["skipped_text_regions"] == 0
     with Image.open(tmp_path / "extracted_figures" / "proceedings-fig-002.png") as figure:
         assert figure.size == (200, 120)
 
@@ -240,19 +241,67 @@ def test_blocks_without_horizontal_overlap_are_ignored(tmp_path, monkeypatch):
     assert records[0]["caption_candidate"] is None
 
 
-def test_no_caption_lookup_happens_without_figures(tmp_path, monkeypatch):
+def test_no_caption_lookup_happens_without_candidates(tmp_path, monkeypatch):
     pages = _pages_directory(tmp_path, "proceedings")
     page_path = pages / "page-0001.png"
     _write_page(page_path, [(10, 10, 30, 30)])
 
     def fail_if_called(image, output_type=None):
-        raise AssertionError("Tesseract must not run on a page without figures")
+        raise AssertionError("Tesseract must not run on a page without figure candidates")
 
     monkeypatch.setattr(figure_extractor.pytesseract, "image_to_data", fail_if_called)
 
     records, _ = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
 
     assert records == []
+
+
+# ---------------------------------------------------------------------------
+# Text coverage: dense paragraph blocks are text, not figures
+# ---------------------------------------------------------------------------
+
+
+def test_component_covered_by_text_is_not_a_figure(tmp_path, monkeypatch):
+    pages = _pages_directory(tmp_path, "proceedings")
+    page_path = pages / "page-0001.png"
+    _write_page(page_path, [FIGURE_BOX])
+    # A word box over the whole component: this is a text block, as on real pages.
+    _stub_ocr(monkeypatch, [("paragraph", (100, 100, 400, 300), 0, 0)])
+
+    records, skipped = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
+
+    assert records == []
+    assert skipped == {"page_sized_regions": 0, "text_regions": 1}
+    assert list((tmp_path / "extracted_figures").iterdir()) == []
+
+
+def test_text_coverage_at_the_limit_is_rejected(tmp_path, monkeypatch):
+    pages = _pages_directory(tmp_path, "proceedings")
+    page_path = pages / "page-0001.png"
+    _write_page(page_path, [FIGURE_BOX])
+    # 150x60 of the 300x200 component: exactly the 15% coverage limit.
+    _stub_ocr(monkeypatch, [("words", (100, 100, 250, 160), 0, 0)])
+
+    records, skipped = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
+
+    assert records == []
+    assert skipped == {"page_sized_regions": 0, "text_regions": 1}
+
+
+def test_large_figure_with_a_small_annotation_inside_is_kept(tmp_path, monkeypatch):
+    pages = _pages_directory(tmp_path, "proceedings")
+    page_path = pages / "page-0001.png"
+    _write_page(page_path, [FIGURE_BOX])
+    # 60x20 of the 300x200 component: 2% coverage, an annotation inside a figure.
+    _stub_ocr(monkeypatch, [("axis label", (120, 120, 180, 140), 0, 0)])
+
+    records, skipped = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
+
+    assert skipped == {"page_sized_regions": 0, "text_regions": 0}
+    assert len(records) == 1
+    # The only block sits inside the figure box, so it is not a caption.
+    assert records[0]["caption_candidate"] is None
+    assert (tmp_path / "extracted_figures" / "proceedings-fig-001.png").exists()
 
 
 def test_blank_ocr_words_are_ignored(tmp_path, monkeypatch):
@@ -290,7 +339,7 @@ def test_component_below_the_area_ratio_is_ignored(tmp_path, monkeypatch):
     records, skipped = _extractor(tmp_path).extract_page(str(page_path), "proceedings", 1)
 
     assert records == []
-    assert skipped == 0
+    assert skipped == {'page_sized_regions': 0, 'text_regions': 0}
 
 
 def test_nearby_components_merge_into_one_figure(tmp_path, monkeypatch):

@@ -2,10 +2,11 @@
 
 The ISSS repository implements a document processing pipeline that discovers
 documents on the Open ISSS site (`https://web3.isss.org`) and the society site
-(`https://www.isss.org`), downloads them, archives their metadata, and converts
-them into text and page images. The pipeline is designed as seven stages; five
-are implemented and two are placeholders (see
-[implementation-status.md](implementation-status.md) for the details).
+(`https://www.isss.org`), downloads them, archives their metadata, converts
+them into text and page images, and compiles descriptive statistics over that
+text. The pipeline is designed as seven stages; six are implemented and one is
+a placeholder (see [implementation-status.md](implementation-status.md) for the
+details).
 
 Discovery starts from the configured seeds rather than from a single URL: the
 `web3.isss.org` front end is a WordPress incubation site that links no
@@ -23,7 +24,7 @@ documents, while the society site links the corpus, including legacy paths on
 | 4 | File conversion | `file_converter.py` / `FileConverter` | Implemented |
 | 5 | OCR | `ocr_processor.py` / `OCRProcessor` | Implemented (standalone; the converter OCRs empty text layers) |
 | 6 | Figure extraction | `figure_extractor.py` / `FigureExtractor` | Placeholder |
-| 7 | Language analysis | `language_analyzer.py` / `LanguageAnalyzer` | Placeholder |
+| 7 | Language analysis | `language_analyzer.py` / `LanguageAnalyzer` | Implemented |
 
 ## Data flow
 
@@ -48,18 +49,22 @@ documents, while the society site links the corpus, including legacy paths on
    pages are PNG and its image-only PDF pages are already OCR'd by stage 4.
 6. **Figure extraction** *(placeholder)* — intended to isolate figures and
    their captions from documents.
-7. **Language analysis** *(placeholder)* — intended to examine document text
-   and compile descriptive statistics.
+7. **Language analysis** — `LanguageAnalyzer` reads the `text/` directory and
+   writes `language_analysis.json` and `SUMMARY.md` with descriptive
+   statistics per document and for the corpus. The rules are in
+   [implementation-status.md](implementation-status.md#statistics-contract-stage-7).
 
 ## Orchestration and standalone entry points
 
-- `python main.py` runs stages 1-4 end to end. Configuration lives in the
-  CONFIG block at the top of `main.py`; see [configuration.md](configuration.md).
+- `python main.py` runs stages 1-4 and 7 end to end (stage 6 is the remaining
+  placeholder). Configuration lives in the CONFIG block at the top of
+  `main.py`; see [configuration.md](configuration.md).
 - Each implemented module can also be run standalone with its own demo:
   `python web_scraper.py`, `python document_downloader.py`,
   `python metadata_archiver.py`, `python file_converter.py`,
-  `python ocr_processor.py`. The scraper and downloader demos use a small seed
-  list and a page budget, so a demo run stays bounded.
+  `python ocr_processor.py`, `python language_analyzer.py`. The scraper and
+  downloader demos use a small seed list and a page budget, so a demo run
+  stays bounded.
 
 ## Directory conventions
 
@@ -71,6 +76,6 @@ run. All of them are gitignored.
 | `downloaded_documents/` | Download directory | `DocumentDownloader` |
 | `archived_documents/` | Archive directory (holds `metadata.json`) | `MetadataArchiver` |
 | `converted_documents/` | Converted output (`text/` and `pages/`) | `FileConverter` |
-| `ocr_texts/` | OCR text output (reserved in `main.py`; used by the module demo) | `OCRProcessor` |
+| `ocr_texts/` | OCR text output (standalone demo; reserved in `main.py`) | `OCRProcessor` |
 | `extracted_figures/` | Figure output (reserved) | — |
-| `language_analysis/` | Language analysis output (reserved) | — |
+| `language_analysis/` | Statistics output (`language_analysis.json`, `SUMMARY.md`) | `LanguageAnalyzer` |

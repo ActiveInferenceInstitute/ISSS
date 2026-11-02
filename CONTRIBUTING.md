@@ -29,12 +29,11 @@ repository, make your changes on a branch, and open a pull request.
   table whenever behavior, paths, or defaults change.
 - **Do not fabricate.** Claims, links, paths, and numbers in documentation
   must be verifiable against the repository contents.
-- **Respect the placeholder stages.** `figure_extractor.py` and
-  `language_analyzer.py` are not yet implemented; if you implement one, follow
-  the intended class signatures documented in
-  [docs/implementation-status.md](docs/implementation-status.md) and wire it
-  into `main()`.
-- **Testing.** The suite in `tests/` covers the five implemented stages and
+- **Respect the placeholder stage.** `figure_extractor.py` is not yet
+  implemented; if you implement it, follow the intended class signature
+  documented in [docs/implementation-status.md](docs/implementation-status.md)
+  and wire it into `main()`.
+- **Testing.** The suite in `tests/` covers the six implemented stages and
   the `main.py` wiring. Run it before opening a pull request:
   ```bash
   pytest          # offline suite with a 90% coverage floor

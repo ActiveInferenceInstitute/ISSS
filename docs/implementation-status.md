@@ -2,7 +2,7 @@
 
 Current implementation status of each pipeline stage, verified against the
 repository contents (2026-08-02; source availability re-checked 2026-11-01;
-stage 4 implemented 2026-11-02).
+stages 4 and 7 implemented 2026-11-02).
 
 ## Source availability (checked 2026-11-01)
 
@@ -37,6 +37,7 @@ directory path alone yields nothing.
 | 3. Metadata archiving | `metadata_archiver.py` | `MetadataArchiver` appends records to `metadata.json`. Runnable standalone: `python metadata_archiver.py`. |
 | 4. File conversion | `file_converter.py` | `FileConverter` writes `text/<name>.txt` and `pages/<name>/page-NNNN.png` per document. Runnable standalone: `python file_converter.py`. See the conversion contract below. |
 | 5. OCR | `ocr_processor.py` | `OCRProcessor` extracts text from `.jpg` images. Runnable standalone: `python ocr_processor.py`. Outside `main.py`: the pipeline emits text and PNG pages, and OCR is applied inside stage 4 to PDF pages whose text layer is empty. |
+| 7. Language analysis | `language_analyzer.py` | `LanguageAnalyzer` writes `language_analysis.json` and `SUMMARY.md` for the converted text. Runnable standalone: `python language_analyzer.py`. See the statistics contract below. |
 
 ## Conversion contract (stage 4)
 
@@ -63,6 +64,27 @@ Decisions this contract fixes:
 - A document that cannot be read is reported and skipped; the remaining
   documents are still converted.
 
+## Statistics contract (stage 7)
+
+`LanguageAnalyzer` reads every `.txt` file in its input directory — the
+`text/` directory written by stage 4 — and writes two artifacts:
+
+| Artifact | Content |
+| --- | --- |
+| `language_analysis.json` | One record per document (name, characters, words, unique words, sentences, average word length, average words per sentence, the 50 most frequent words) plus the corpus totals (documents, characters, words, unique words, sentences, both averages, the 100 most frequent words). |
+| `SUMMARY.md` | The same figures as two Markdown tables and the corpus word list. |
+
+Decisions this contract fixes:
+
+- The statistics are descriptive and use only the standard library; no
+  lemmatization, part-of-speech tagging or stop-word removal is applied.
+- A word is a run of letters, digits or apostrophes after lowercasing, so
+  `Proceedings`, `proceedings,` and `proceedings.` all count as
+  `proceedings`, and `don't` stays one word.
+- A sentence ends at `.`, `!` or `?`; empty segments do not count.
+- Documents are read in sorted name order and artifacts overwrite earlier
+  runs, so the output is deterministic.
+
 ## Placeholders
 
 The following modules exist in the repository but contain only a status
@@ -71,7 +93,6 @@ docstring; the pipeline stage they belong to is not yet implemented:
 | Stage | Module | Intended behavior |
 | --- | --- | --- |
 | 6. Figure extraction | `figure_extractor.py` | Isolate figures and their captions from documents for separate analysis. |
-| 7. Language analysis | `language_analyzer.py` | Examine document text and compile descriptive statistics. |
 
 ## Completing a placeholder stage
 
@@ -83,7 +104,7 @@ from the original pipeline wiring:
 | --- | --- | --- | --- |
 | `file_converter.py` | `FileConverter` | `FileConverter(download_path, converted_path)` | `convert_files()` — completed 2026-11-02 |
 | `figure_extractor.py` | `FigureExtractor` | `FigureExtractor(converted_path, figure_output_path)` | `extract_figures()` |
-| `language_analyzer.py` | `LanguageAnalyzer` | `LanguageAnalyzer(ocr_output_path, language_analysis_output_path)` | `analyze_language()` |
+| `language_analyzer.py` | `LanguageAnalyzer` | `LanguageAnalyzer(text_path, output_path)` | `analyze_language()` — completed 2026-11-02 |
 
 To complete a stage: implement the class in the module, wire the stage back
 into `main()` in `main.py`, add offline tests under `tests/` (see

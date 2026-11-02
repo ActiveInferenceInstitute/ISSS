@@ -16,7 +16,7 @@ run `python main.py`.
 | `CONVERTED_PATH` | `converted_documents` | Where the conversion stage writes `text/` and `pages/`. |
 | `OCR_OUTPUT_PATH` | `ocr_texts` | Reserved for the OCR stage. |
 | `FIGURE_OUTPUT_PATH` | `extracted_figures` | Reserved for figure extraction. |
-| `LANGUAGE_ANALYSIS_OUTPUT_PATH` | `language_analysis` | Reserved for language analysis. |
+| `LANGUAGE_ANALYSIS_OUTPUT_PATH` | `language_analysis` | Where the statistics report and summary are written. |
 
 ## Module parameters
 
@@ -77,6 +77,22 @@ run `python main.py`.
   [implementation-status.md](implementation-status.md#conversion-contract-stage-4).
 - Requires `PyMuPDF`, `python-docx`, `python-pptx` and `openpyxl`; image-only
   PDF pages additionally need the system Tesseract binary.
+
+### `LanguageAnalyzer` (`language_analyzer.py`)
+
+- Constructor: `LanguageAnalyzer(text_path, output_path)` — creates
+  `output_path` if needed. `main.py` passes `<CONVERTED_PATH>/text`, the
+  directory stage 4 writes.
+- `analyze_language()` — analyses every `.txt` file in `text_path` in sorted
+  order and writes `language_analysis.json` and `SUMMARY.md` into
+  `output_path`; returns the report.
+- `analyze_document(document_path)` — analyses one text file and returns its
+  record.
+- Module constants: `WORD_PATTERN`, `SENTENCE_PATTERN`, `REPORT_NAME`,
+  `SUMMARY_NAME`, `TOP_WORDS_PER_DOCUMENT` (50) and `TOP_WORDS_CORPUS` (100).
+  The statistics contract is in
+  [implementation-status.md](implementation-status.md#statistics-contract-stage-7).
+- Uses only the standard library.
 
 ### `OCRProcessor` (`ocr_processor.py`)
 

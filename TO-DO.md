@@ -10,7 +10,8 @@ deep-review pass (2026-08-02). Items are grouped by severity:
 Status markers: `[x]` completed (with commit reference), `[ ]` open/deferred.
 
 Last reviewed: 2026-08-02 (documentation deep-review pass); discovery and
-source-availability follow-up 2026-11-01.
+source-availability follow-up 2026-11-01; infrastructure (tests, CI,
+packaging) follow-up 2026-11-01.
 
 ---
 
@@ -85,8 +86,13 @@ source-availability follow-up 2026-11-01.
       `figure_extractor.py`, `language_analyzer.py`) — deferred: this is new
       functionality beyond a documentation pass; the intended class
       signatures are documented in `docs/implementation-status.md`
-- [ ] Add automated tests and CI — deferred: no test infrastructure exists;
-      introducing it is a new toolchain beyond a documentation pass (see
-      `REVIEW_LOG_2026-08-02.md`)
-- [ ] Add `pyproject.toml` packaging metadata — deferred: packaging
-      infrastructure beyond documentation scope
+
+## Completed after the documentation pass
+
+- [x] Add automated tests and CI: `tests/` covers the four implemented stages
+      and the `main.py` wiring offline (local fixture server, stubbed HTTP and
+      OCR), with a 90% coverage floor; `.github/workflows/ci.yml` runs lint and
+      tests on Python 3.12-3.14 — ✓ `7caaa45`
+- [x] Add `pyproject.toml` packaging metadata: dependencies and the dev extra
+      live there, the Python floor is 3.12, and `requirements.txt` is removed
+      with every reference updated — ✓ `7caaa45`

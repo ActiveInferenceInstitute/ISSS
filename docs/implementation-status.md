@@ -60,5 +60,6 @@ from the original pipeline wiring:
 | `language_analyzer.py` | `LanguageAnalyzer` | `LanguageAnalyzer(ocr_output_path, language_analysis_output_path)` | `analyze_language()` |
 
 To complete a stage: implement the class in the module, wire the stage back
-into `main()` in `main.py`, and update this page and the
-[README](../README.md#pipeline-components) component table.
+into `main()` in `main.py`, add offline tests under `tests/` (see
+[tests/README.md](../tests/README.md) for the rules), and update this page and
+the [README](../README.md#pipeline-components) component table.

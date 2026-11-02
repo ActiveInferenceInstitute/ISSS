@@ -88,8 +88,8 @@ run `python main.py`.
   `extract_page(page_path, document_name, page_number, first_figure_number=1)`
   — work on one document or one page; useful on their own for large runs.
 - Module constants: `INK_THRESHOLD`, `MERGE_DISTANCE`, `MIN_FIGURE_SIDE`,
-  `MIN_FIGURE_AREA_RATIO`, `MAX_FIGURE_AREA_RATIO` and `CAPTION_MAX_GAP`. The
-  heuristic and its limits are in
+  `MIN_FIGURE_AREA_RATIO`, `MAX_FIGURE_AREA_RATIO`, `TEXT_COVERAGE_LIMIT` and
+  `CAPTION_MAX_GAP`. The heuristic and its limits are in
   [implementation-status.md](implementation-status.md#figure-contract-stage-6).
 - Needs the system Tesseract binary for the caption candidates.
 

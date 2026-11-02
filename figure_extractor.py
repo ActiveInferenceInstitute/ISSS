@@ -11,18 +11,23 @@ Detection runs on the rendered page, so it needs no source-document layout:
   ``INK_THRESHOLD``) and connected components of ink are built with a
   run-length sweep, then merged when their boxes are within ``MERGE_DISTANCE``
   pixels of each other.
-- A component becomes a figure when both sides of its bounding box are at
+- A component becomes a candidate when both sides of its bounding box are at
   least ``MIN_FIGURE_SIDE`` pixels, its box covers at least
   ``MIN_FIGURE_AREA_RATIO`` of the page, and it covers no more than
   ``MAX_FIGURE_AREA_RATIO``: text lines are too thin and a page-sized region is
   a scan of the whole page rather than a figure. Page-sized regions are counted
   in the report, not cropped.
+- A candidate whose box is covered by at least ``TEXT_COVERAGE_LIMIT`` of the
+  word boxes Tesseract reports for the page is text, not a figure, and is
+  counted in the report instead of being cropped. Dense paragraph blocks pass
+  the size and area tests, and on real proceedings pages they carry 0.5-0.6 of
+  their box covered by recognized words, while figures carry 0.06-0.18, so the
+  coverage test is what separates the two.
 
 Each figure keeps its caption candidate:
 
-- The page is also read with Tesseract's word boxes
-  (``image_to_data``); words are grouped into blocks by the block, paragraph
-  and line numbers Tesseract reports.
+- The word boxes are grouped into blocks by the block, paragraph and line
+  numbers Tesseract reports, reusing the same page read as the coverage test.
 - The caption candidate is the text block nearest to the figure box, measured
   as the vertical gap for blocks that overlap the figure horizontally, with
   blocks below the figure preferred over blocks above it.
@@ -54,6 +59,8 @@ MIN_FIGURE_SIDE = 48
 #: Smallest and largest page-area ratio of an accepted figure box.
 MIN_FIGURE_AREA_RATIO = 0.03
 MAX_FIGURE_AREA_RATIO = 0.80
+#: A candidate whose box is covered this much by Tesseract word boxes is text.
+TEXT_COVERAGE_LIMIT = 0.15
 #: Largest distance between a figure box and its caption candidate, in pixels.
 CAPTION_MAX_GAP = 120
 #: Metadata file name and the page-image directory name written by stage 4.
@@ -112,21 +119,24 @@ class FigureExtractor:
         pages_directory = os.path.join(self.pages_path, document_name)
         figures = []
         skipped_page_sized = 0
+        skipped_text = 0
         for page_name in sorted(os.listdir(pages_directory)):
             if not page_name.lower().endswith('.png'):
                 continue
-            page_figures, page_skipped = self.extract_page(
+            page_figures, skipped = self.extract_page(
                 os.path.join(pages_directory, page_name),
                 document_name,
                 _page_number(page_name),
                 len(figures) + 1,
             )
             figures.extend(page_figures)
-            skipped_page_sized += page_skipped
+            skipped_page_sized += skipped['page_sized_regions']
+            skipped_text += skipped['text_regions']
         return {
             'document_name': document_name,
             'figures': figures,
             'skipped_page_sized_regions': skipped_page_sized,
+            'skipped_text_regions': skipped_text,
         }
 
     def extract_page(self, page_path, document_name, page_number, first_figure_number=1):
@@ -140,15 +150,26 @@ class FigureExtractor:
                 on this page, so numbering continues across a document.
 
         Returns:
-            tuple[list[dict], int]: The figure records with their file names,
-            and the number of page-sized regions that were skipped.
+            tuple[list[dict], dict]: The figure records with their file names,
+            and the number of page-sized and text regions that were skipped.
         """
         with Image.open(page_path) as page_image:
             page = page_image.convert('L')
             boxes = _merge_nearby_boxes(_component_boxes(page.tobytes(), *page.size))
             page_size = page.size
-        figure_boxes, skipped_page_sized = _classify_components(boxes, page_size)
-        caption_blocks = self._caption_blocks(page) if figure_boxes else []
+        candidates, skipped_page_sized = _classify_components(boxes, page_size)
+        figure_boxes = []
+        skipped_text = 0
+        caption_blocks = []
+        if candidates:
+            word_data = _ocr_page(page)
+            word_boxes = _word_boxes(word_data)
+            caption_blocks = _text_blocks(word_data)
+            for box in candidates:
+                if _text_coverage(box, word_boxes) >= TEXT_COVERAGE_LIMIT:
+                    skipped_text += 1
+                else:
+                    figure_boxes.append(box)
         records = []
         for index, box in enumerate(figure_boxes):
             figure_name = f'{document_name}-fig-{first_figure_number + index:03d}.png'
@@ -167,7 +188,7 @@ class FigureExtractor:
                     'caption_bbox': _box_record(caption['box']) if caption else None,
                 }
             )
-        return records, skipped_page_sized
+        return records, {'page_sized_regions': skipped_page_sized, 'text_regions': skipped_text}
 
     def _document_names(self):
         """Returns the document directories written by stage 4."""
@@ -177,39 +198,6 @@ class FigureExtractor:
             name
             for name in os.listdir(self.pages_path)
             if os.path.isdir(os.path.join(self.pages_path, name))
-        ]
-
-    @staticmethod
-    def _caption_blocks(page):
-        """Returns the text blocks Tesseract reports for one page.
-
-        Args:
-            page (PIL.Image.Image): The grayscale page image.
-
-        Returns:
-            list[dict]: One entry per block, with its text and its box.
-        """
-        data = pytesseract.image_to_data(page, output_type=pytesseract.Output.DICT)
-        blocks = {}
-        for index, word in enumerate(data.get('text', [])):
-            if not word.strip():
-                continue
-            key = (data['block_num'][index], data['par_num'][index], data['line_num'][index])
-            left = data['left'][index]
-            top = data['top'][index]
-            right = left + data['width'][index]
-            bottom = top + data['height'][index]
-            block = blocks.setdefault(key, {'words': [], 'box': [left, top, right, bottom]})
-            block['words'].append(word)
-            block['box'] = [
-                min(block['box'][0], left),
-                min(block['box'][1], top),
-                max(block['box'][2], right),
-                max(block['box'][3], bottom),
-            ]
-        return [
-            {'text': ' '.join(block['words']), 'box': tuple(block['box'])}
-            for _, block in sorted(blocks.items())
         ]
 
     @staticmethod
@@ -252,6 +240,93 @@ class FigureExtractor:
         report_path = os.path.join(self.figure_output_path, REPORT_NAME)
         with open(report_path, 'w', encoding='utf-8') as report_file:
             json.dump(report, report_file, indent=2, ensure_ascii=False)
+
+
+def _ocr_page(page):
+    """Returns Tesseract's word data for one page.
+
+    The stage needs the system Tesseract binary; one read of the page serves
+    both the text-coverage test and the caption blocks.
+
+    Args:
+        page (PIL.Image.Image): The grayscale page image.
+
+    Returns:
+        dict: Tesseract's ``image_to_data`` dictionary.
+    """
+    return pytesseract.image_to_data(page, output_type=pytesseract.Output.DICT)
+
+
+def _word_boxes(word_data):
+    """Returns the box of every recognized word.
+
+    Args:
+        word_data (dict): Tesseract's ``image_to_data`` dictionary.
+
+    Returns:
+        list[tuple[int, int, int, int]]: Word boxes, right and bottom exclusive.
+    """
+    boxes = []
+    for index, word in enumerate(word_data.get('text', [])):
+        if not word.strip():
+            continue
+        left = word_data['left'][index]
+        top = word_data['top'][index]
+        boxes.append(
+            (left, top, left + word_data['width'][index], top + word_data['height'][index])
+        )
+    return boxes
+
+
+def _text_blocks(word_data):
+    """Groups the recognized words into blocks, by Tesseract's own numbering.
+
+    Args:
+        word_data (dict): Tesseract's ``image_to_data`` dictionary.
+
+    Returns:
+        list[dict]: One entry per block, with its text and its box.
+    """
+    blocks = {}
+    for index, word in enumerate(word_data.get('text', [])):
+        if not word.strip():
+            continue
+        key = (word_data['block_num'][index], word_data['par_num'][index], word_data['line_num'][index])
+        left = word_data['left'][index]
+        top = word_data['top'][index]
+        right = left + word_data['width'][index]
+        bottom = top + word_data['height'][index]
+        block = blocks.setdefault(key, {'words': [], 'box': [left, top, right, bottom]})
+        block['words'].append(word)
+        block['box'] = [
+            min(block['box'][0], left),
+            min(block['box'][1], top),
+            max(block['box'][2], right),
+            max(block['box'][3], bottom),
+        ]
+    return [
+        {'text': ' '.join(block['words']), 'box': tuple(block['box'])}
+        for _, block in sorted(blocks.items())
+    ]
+
+
+def _text_coverage(box, word_boxes):
+    """Returns the fraction of a component box covered by recognized words.
+
+    Args:
+        box (tuple[int, int, int, int]): The component box.
+        word_boxes (list[tuple[int, int, int, int]]): The page's word boxes.
+
+    Returns:
+        float: Covered area divided by the component area, capped at 1.0.
+    """
+    area = max(1, (box[2] - box[0]) * (box[3] - box[1]))
+    covered = 0
+    for other in word_boxes:
+        overlap_x = max(0, min(box[2], other[2]) - max(box[0], other[0]))
+        overlap_y = max(0, min(box[3], other[3]) - max(box[1], other[1]))
+        covered += overlap_x * overlap_y
+    return min(1.0, covered / area)
 
 
 def _classify_components(boxes, page_size):

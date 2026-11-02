@@ -30,8 +30,11 @@ documents, while the society site links the corpus, including legacy paths on
 
 1. **Web scraping** — `WebScraper` crawls from each configured seed
    (`SEED_URLS`), following same-domain links (`*.isss.org`) up to `max_depth`
-   (default 11) and at most `MAX_PAGES` pages per run, and collects URLs
-   ending in `.pdf`, `.docx`, `.pptx`, or `.xlsx`.
+   (default 11) and at most `MAX_PAGES` pages per run across every seed, and
+   collects URLs ending in `.pdf`, `.docx`, `.pptx`, or `.xlsx`. Seeds take
+   turns so one cannot spend the whole budget, and fragment, session, login,
+   feed and search URLs are normalised away or skipped (see the discovery
+   contract in [implementation-status.md](implementation-status.md#discovery-contract-stage-1)).
 2. **Document download** — `DocumentDownloader` downloads each discovered URL
    into the download directory in 1 KiB chunks, skipping files that already
    exist.

@@ -118,3 +118,9 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
       extension its response `Content-Type` implies, so the journal galley that
       stage 4 dropped as `7584` now converts as `7584.pdf` — ✓ `ab5432e`,
       merged as `a29747a`
+- [x] Fix stage 1 on the live run: URLs are normalised (fragments, session and
+      tracking parameters), login, admin, feed, search and reply URLs are never
+      queued, document links are recorded instead of fetched, and seeds take
+      turns so one cannot spend the whole budget; `MAX_PAGES` stays the total
+      across every seed. Before: 6 of 6 pages on one fixture site with 0
+      documents; after: 4 pages, both seeds reached, 1 document — ✓ `ef9a686`

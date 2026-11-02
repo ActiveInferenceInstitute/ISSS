@@ -61,10 +61,42 @@ stage 6 reported paragraph blocks as figures (118 of 118 candidates; the
 coverage test rejects them and 5 figures with real captions remain), and stage
 2 saved an extension-less galley URL as `7584`, which stage 4 then skipped.
 
-Still open: the crawl spends its page budget on front-end fragment and utility
-URLs (`#content`, `#respond`, `wp-login.php`), so a small `MAX_PAGES` never
-reaches the second seed. Fragment handling and seed-fair budgeting are not
-implemented.
+The third defect in discovery — the page budget going to front-end fragment
+and utility URLs — is fixed; the rule and its before/after measurement are in
+the discovery contract below.
+
+## Discovery contract (stage 1)
+
+`WebScraper` starts from `SEED_URLS`, follows same-domain links up to the depth
+limit and records document URLs. Four rules keep the page budget on content:
+
+| Rule | Effect |
+| --- | --- |
+| URL normalisation | The fragment is dropped, the scheme and host are lowercased, a default port and the session/tracking parameters (`sid`, `sessionid`, `phpsessid`, `jsessionid`, `fbclid`, `gclid`, `utm_*`) are removed and an empty query disappears. Links that differ only in those parts are one URL, so `page`, `page#content` and `page#respond` cost one fetch instead of three. |
+| Utility filtering | Path segments `wp-admin`, `wp-login.php`, `wp-signup.php`, `wp-register.php`, `wp-cron.php`, `wp-json`, `xmlrpc.php`, `feed`, `comments`, `search` and the query keys `s`, `feed`, `replytocom` are site machinery. They are never queued. |
+| Documents are results, not pages | A link to `.pdf`, `.docx`, `.pptx` or `.xlsx` is recorded and never fetched, so the crawl does not spend a page on a file it has already found. |
+| Seed-fair budget | Seeds take turns one page at a time (round-robin). A seed whose links are exhausted drops out and the others continue. `MAX_PAGES` stays the total page budget for the run, across every seed. |
+
+Decisions this contract fixes:
+
+- Before these rules the first seed's depth-first walk spent the whole budget:
+  on a page carrying WordPress link furniture, the same page was fetched three
+  times (once for the page, once for `#content`, once for `#respond`) before
+  `wp-login.php`, a feed and a search URL took the rest, and the second seed was
+  never reached. The before/after measurement on one fixture site with
+  `MAX_PAGES=6`: **before**, 6 of 6 pages fetched (`/seed-one/` three times,
+  then `/wp-login.php`, `/annual-meetings/feed/`, `/?s=active+inference`) and
+  0 documents; **after**, 4 pages (`/seed-one/`, `/seed-two/`, `/a/`, `/b/`) and
+  the document the second seed links.
+- The crawl is breadth-first from each seed: a seed's own pages are visited in
+  the order their links appear, one page per turn.
+- A configured seed is always fetched. The utility rules apply to discovered
+  links, and a document link is both recorded and kept out of the crawl queue.
+- A page that fails to load is reported and the crawl continues with the
+  remaining pages of every seed's queue.
+- Dropping a fragment removes no content: a browser never sends one, so the
+  server returns the same page; the change only stops the same page being
+  counted twice against the budget.
 
 ## Download contract (stage 2)
 

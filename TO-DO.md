@@ -11,8 +11,7 @@ Status markers: `[x]` completed (with commit reference), `[ ]` open/deferred.
 
 Last reviewed: 2026-08-02 (documentation deep-review pass); discovery and
 source-availability follow-up 2026-11-01; infrastructure (tests, CI,
-packaging) follow-up 2026-11-01; stage 4 (file conversion) implemented
-2026-11-02.
+packaging) follow-up 2026-11-01; stages 4 and 7 implemented 2026-11-02.
 
 ---
 
@@ -83,11 +82,10 @@ packaging) follow-up 2026-11-01; stage 4 (file conversion) implemented
 
 ## Open / deferred
 
-- [ ] Implement the two remaining placeholder pipeline stages
-      (`figure_extractor.py`, `language_analyzer.py`) — deferred: this is new
-      functionality beyond a documentation pass; the intended class
-      signatures are documented in `docs/implementation-status.md`. Stage 4
-      (`file_converter.py`) is done — see below.
+- [ ] Implement the last placeholder pipeline stage (`figure_extractor.py`) —
+      deferred: this is new functionality beyond a documentation pass; the
+      intended class signature is documented in
+      `docs/implementation-status.md`. Stages 4 and 7 are done — see below.
 
 ## Completed after the documentation pass
 

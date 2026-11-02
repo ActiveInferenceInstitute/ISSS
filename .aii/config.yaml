@@ -46,7 +46,7 @@ artifacts:
   description: Package metadata, dependencies and tool configuration.
 - path: tests/
   kind: code
-  description: Offline test suite for the five implemented stages and the main wiring.
+  description: Offline test suite for the six implemented stages and the main wiring.
 - path: .github/workflows/ci.yml
   kind: code
   description: CI workflow (lint, tests, coverage gate) on Python 3.12-3.14.

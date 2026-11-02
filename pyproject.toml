@@ -53,6 +53,7 @@ source = [
     "metadata_archiver",
     "file_converter",
     "ocr_processor",
+    "language_analyzer",
     "main",
 ]
 

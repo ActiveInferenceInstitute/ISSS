@@ -32,7 +32,7 @@ must be pages that link documents.
 | File Converter — converts documents into text files and page images | `file_converter.py` | Implemented |
 | OCR Processor — extracts text from document images | `ocr_processor.py` | Implemented |
 | Figure Extractor — isolates figures and captions for separate analysis | `figure_extractor.py` | Placeholder |
-| Language Analyzer — compiles descriptive statistics on document text | `language_analyzer.py` | Placeholder |
+| Language Analyzer — compiles descriptive statistics on document text | `language_analyzer.py` | Implemented |
 
 ## Getting Started
 
@@ -52,7 +52,7 @@ must be pages that link documents.
 Each implemented module can also be run standalone as a demo:
 `python web_scraper.py`, `python document_downloader.py`,
 `python metadata_archiver.py`, `python file_converter.py`,
-`python ocr_processor.py`.
+`python ocr_processor.py`, `python language_analyzer.py`.
 
 ## Prerequisites
 
@@ -65,11 +65,12 @@ Each implemented module can also be run standalone as a demo:
 - `Pillow` and `pytesseract` plus the system Tesseract binary — OCR
   (`ocr_processor.py`), also used by the converter for PDF pages whose text
   layer is empty.
-- The metadata archiver uses only the standard library.
+- The metadata archiver and the language analyzer use only the standard
+  library.
 
 ## Tests
 
-The suite covers the five implemented stages and the `main.py` wiring, and it
+The suite covers the six implemented stages and the `main.py` wiring, and it
 runs offline: fixture pages come from an in-process server, the HTTP and OCR
 calls are stubbed, and the document fixtures are generated in the test
 directory, so no test needs network access or Tesseract.

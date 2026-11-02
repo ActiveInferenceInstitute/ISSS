@@ -98,3 +98,6 @@ packaging) follow-up 2026-11-01; stage 4 (file conversion) implemented
 - [x] Add `pyproject.toml` packaging metadata: dependencies and the dev extra
       live there, the Python floor is 3.12, and `requirements.txt` is removed
       with every reference updated — ✓ `7caaa45`
+- [x] Implement stage 4 (`file_converter.py`): documents convert to
+      `text/<name>.txt` and `pages/<name>/page-NNNN.png`, with a Tesseract
+      fallback for image-only PDF pages, and `main.py` now runs stages 1-4 — ✓ `e327f80`

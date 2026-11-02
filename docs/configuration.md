@@ -43,8 +43,13 @@ run `python main.py`.
 - Constructor: `DocumentDownloader(base_url, save_path, seed_urls=None,
   max_pages=None)` — creates `save_path` if needed and forwards the
   discovery settings to its internal `WebScraper`.
-- `save_document(session, url)` — downloads in 1 KiB chunks and skips files
-  that already exist.
+- `save_document(session, url)` — downloads in 1 KiB chunks, skips files that
+  already exist, and returns the file name it wrote.
+- `document_filename(url)` — the last segment of the URL path, so a query
+  string or fragment cannot leak into the file name.
+- `with_content_type_extension(filename, content_type)` — adds the extension
+  the response type implies when the URL carried none. The naming rules are in
+  [implementation-status.md](implementation-status.md#download-contract-stage-2).
 - `download_documents()` — crawls via an internal `WebScraper`, then
   downloads all discovered document URLs concurrently.
 

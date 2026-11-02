@@ -5,17 +5,30 @@ from bs4 import BeautifulSoup
 
 
 class WebScraper:
-    def __init__(self, base_url="https://web3.isss.org"):
-        """Initializes the WebScraper with the base URL of the Open ISSS site.
+    def __init__(self, base_url="https://web3.isss.org", seed_urls=None, max_pages=None):
+        """Initializes the WebScraper with the pages to start crawling from.
         
         Args:
-            base_url (str): The base URL from which the scraping starts. Defaults to Open ISSS site.
+            base_url (str): The base URL of the Open ISSS site. Defaults to Open ISSS site.
+            seed_urls (list): Pages the crawl starts from. Defaults to ``[base_url]``.
+            max_pages (int): Optional upper bound on pages fetched in one run.
+                Defaults to None, which leaves the crawl unbounded.
         """
         self.base_url = base_url
+        self.seed_urls = list(seed_urls) if seed_urls else [base_url]
+        self.max_pages = max_pages
         self.visited_urls = set()  # Tracks visited URLs to avoid revisiting.
         self.document_urls = []  # Stores discovered document URLs.
         self.total_scraped_pages = 0  # Tracks the total number of pages scraped.
         self.total_documents_found = 0  # Tracks the total number of documents found.
+
+    def _page_budget_exhausted(self):
+        """Checks whether the optional page budget for this run is used up.
+
+        Returns:
+            bool: True when ``max_pages`` is set and reached, False otherwise.
+        """
+        return self.max_pages is not None and self.total_scraped_pages >= self.max_pages
 
     def is_valid_url(self, url):
         """Checks if a URL is valid and belongs to the specified domain.
@@ -74,7 +87,7 @@ class WebScraper:
             depth (int): The current depth of the crawl.
             max_depth (int): The maximum depth to crawl.
         """
-        if depth > max_depth or url in self.visited_urls:
+        if depth > max_depth or url in self.visited_urls or self._page_budget_exhausted():
             return
         print(f"Scraping {url} at depth {depth}")
         self.visited_urls.add(url)
@@ -85,9 +98,15 @@ class WebScraper:
         for link in links:
             self.crawl(link, depth + 1, max_depth)
 
-    def start_crawling(self):
-        """Initiates the crawling process."""
-        self.crawl(self.base_url)
+    def start_crawling(self, max_depth=11):
+        """Initiates the crawling process from every configured seed page.
+
+        Args:
+            max_depth (int): The maximum depth to crawl from each seed.
+        """
+        print(f"Starting crawl from {len(self.seed_urls)} seed page(s).")
+        for seed_url in self.seed_urls:
+            self.crawl(seed_url, 0, max_depth)
         print(f"Scraping completed. Total pages scraped: {self.total_scraped_pages}")
         print(f"Total documents found: {self.total_documents_found}")
 
@@ -101,7 +120,9 @@ class WebScraper:
 
 if __name__ == "__main__":
     base_url = "https://web3.isss.org"  # Example base URL for standalone operation
-    scraper = WebScraper(base_url)
+    # The web3 front end alone exposes no documents; the society site links them.
+    seed_urls = [base_url, "https://www.isss.org/annual-meetings/"]
+    scraper = WebScraper(base_url, seed_urls=seed_urls, max_pages=25)
     scraper.start_crawling()
     documents = scraper.get_document_urls()
     print(f"Found {len(documents)} documents: ")

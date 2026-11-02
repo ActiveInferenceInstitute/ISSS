@@ -24,7 +24,16 @@ from web_scraper import WebScraper
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-BASE_URL = 'https://web3.isss.org'  # Site to crawl for documents.
+BASE_URL = 'https://web3.isss.org'  # Base URL of the Open ISSS site.
+# Pages the discovery crawl starts from. The web3 front end alone links no
+# documents; the society site links the document paths, including the legacy
+# web3.isss.org proceedings. See docs/implementation-status.md.
+SEED_URLS = [
+    BASE_URL,
+    'https://www.isss.org/',
+    'https://www.isss.org/annual-meetings/',
+]
+MAX_PAGES = 250  # Upper bound on pages fetched in one discovery run.
 DOWNLOAD_PATH = 'downloaded_documents'  # Where downloaded files are saved.
 ARCHIVE_PATH = 'archived_documents'  # Where metadata.json is written.
 
@@ -45,7 +54,7 @@ async def _download(urls):
 
 def main():
     # Step 1: discover document URLs on the site
-    scraper = WebScraper(BASE_URL)
+    scraper = WebScraper(BASE_URL, seed_urls=SEED_URLS, max_pages=MAX_PAGES)
     scraper.start_crawling()
     document_urls = scraper.get_document_urls()
     print(f'Discovered {len(document_urls)} document(s).')

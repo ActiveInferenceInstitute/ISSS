@@ -3,9 +3,9 @@
 The ISSS repository implements a document processing pipeline that discovers
 documents on the Open ISSS site (`https://web3.isss.org`) and the society site
 (`https://www.isss.org`), downloads them, archives their metadata, converts
-them into text and page images, and compiles descriptive statistics over that
-text. The pipeline is designed as seven stages; six are implemented and one is
-a placeholder (see [implementation-status.md](implementation-status.md) for the
+them into text and page images, extracts figures with caption candidates, and
+compiles descriptive statistics over the text. All seven stages are
+implemented (see [implementation-status.md](implementation-status.md) for the
 details).
 
 Discovery starts from the configured seeds rather than from a single URL: the
@@ -23,7 +23,7 @@ documents, while the society site links the corpus, including legacy paths on
 | 3 | Metadata archiving | `metadata_archiver.py` / `MetadataArchiver` | Implemented |
 | 4 | File conversion | `file_converter.py` / `FileConverter` | Implemented |
 | 5 | OCR | `ocr_processor.py` / `OCRProcessor` | Implemented (standalone; the converter OCRs empty text layers) |
-| 6 | Figure extraction | `figure_extractor.py` / `FigureExtractor` | Placeholder |
+| 6 | Figure extraction | `figure_extractor.py` / `FigureExtractor` | Implemented |
 | 7 | Language analysis | `language_analyzer.py` / `LanguageAnalyzer` | Implemented |
 
 ## Data flow
@@ -47,8 +47,12 @@ documents, while the society site links the corpus, including legacy paths on
    writes the extracted text to one `.txt` file per image. It requires the
    system Tesseract binary and stays a standalone stage: the pipeline's own
    pages are PNG and its image-only PDF pages are already OCR'd by stage 4.
-6. **Figure extraction** *(placeholder)* — intended to isolate figures and
-   their captions from documents.
+6. **Figure extraction** — `FigureExtractor` finds figure-sized ink regions in
+   each page image, crops them to `<document>-fig-NNN.png`, and records for
+   every figure its page box and its caption candidate (the nearest text block
+   Tesseract reports on the page) in `figures.json`. The heuristic and its
+   limits are in
+   [implementation-status.md](implementation-status.md#figure-contract-stage-6).
 7. **Language analysis** — `LanguageAnalyzer` reads the `text/` directory and
    writes `language_analysis.json` and `SUMMARY.md` with descriptive
    statistics per document and for the corpus. The rules are in
@@ -56,15 +60,15 @@ documents, while the society site links the corpus, including legacy paths on
 
 ## Orchestration and standalone entry points
 
-- `python main.py` runs stages 1-4 and 7 end to end (stage 6 is the remaining
-  placeholder). Configuration lives in the CONFIG block at the top of
-  `main.py`; see [configuration.md](configuration.md).
+- `python main.py` runs all seven stages, with stage 5 (OCR) also available
+  standalone. Configuration lives in the CONFIG block at the top of `main.py`;
+  see [configuration.md](configuration.md).
 - Each implemented module can also be run standalone with its own demo:
   `python web_scraper.py`, `python document_downloader.py`,
   `python metadata_archiver.py`, `python file_converter.py`,
-  `python ocr_processor.py`, `python language_analyzer.py`. The scraper and
-  downloader demos use a small seed list and a page budget, so a demo run
-  stays bounded.
+  `python figure_extractor.py`, `python ocr_processor.py`,
+  `python language_analyzer.py`. The scraper and downloader demos use a small
+  seed list and a page budget, so a demo run stays bounded.
 
 ## Directory conventions
 
@@ -77,5 +81,5 @@ run. All of them are gitignored.
 | `archived_documents/` | Archive directory (holds `metadata.json`) | `MetadataArchiver` |
 | `converted_documents/` | Converted output (`text/` and `pages/`) | `FileConverter` |
 | `ocr_texts/` | OCR text output (standalone demo; reserved in `main.py`) | `OCRProcessor` |
-| `extracted_figures/` | Figure output (reserved) | — |
+| `extracted_figures/` | Figure images and `figures.json` | `FigureExtractor` |
 | `language_analysis/` | Statistics output (`language_analysis.json`, `SUMMARY.md`) | `LanguageAnalyzer` |

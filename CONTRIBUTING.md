@@ -29,20 +29,20 @@ repository, make your changes on a branch, and open a pull request.
   table whenever behavior, paths, or defaults change.
 - **Do not fabricate.** Claims, links, paths, and numbers in documentation
   must be verifiable against the repository contents.
-- **Respect the placeholder stage.** `figure_extractor.py` is not yet
-  implemented; if you implement it, follow the intended class signature
-  documented in [docs/implementation-status.md](docs/implementation-status.md)
-  and wire it into `main()`.
-- **Testing.** The suite in `tests/` covers the six implemented stages and
-  the `main.py` wiring. Run it before opening a pull request:
+- **Keep the stage contracts.** Every pipeline stage is implemented; if you
+  change one, keep the artifacts documented in
+  [docs/implementation-status.md](docs/implementation-status.md) or update the
+  contract and the dependent stages together.
+- **Testing.** The suite in `tests/` covers all seven stages and the `main.py`
+  wiring. Run it before opening a pull request:
   ```bash
   pytest          # offline suite with a 90% coverage floor
   ruff check .    # lint gate
   ```
   Tests must stay offline: use the fixtures in `tests/conftest.py` (a local
   HTTP server plus stubs) instead of live requests, and keep fixtures small.
-  See [tests/README.md](tests/README.md). If you implement a placeholder
-  stage, add tests for it alongside the code.
+  See [tests/README.md](tests/README.md). Keep the stage contracts and add
+  tests alongside any code change.
 
 ## Pull request process
 

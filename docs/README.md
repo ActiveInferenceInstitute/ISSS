@@ -12,7 +12,7 @@ of the documentation deep-review pass.
 | --- | --- |
 | [architecture.md](architecture.md) | High-level pipeline overview: stages, data flow, modules, and directory conventions. |
 | [configuration.md](configuration.md) | Configuration reference: every setting, path, and default used by the pipeline. |
-| [implementation-status.md](implementation-status.md) | Which pipeline stages are implemented and which are placeholders. |
+| [implementation-status.md](implementation-status.md) | Every pipeline stage, its artifacts and its output contract. |
 | [README.md](../README.md) | Project landing page: quickstart, components, dependencies, license. |
 | [tests/README.md](../tests/README.md) | Offline test suite: scope, how to run it, and the offline rule. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute to this repository. |

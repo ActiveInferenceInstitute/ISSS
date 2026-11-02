@@ -1,9 +1,9 @@
 # Tests
 
-The suite covers the six implemented pipeline stages (`web_scraper.py`,
+The suite covers all seven implemented pipeline stages (`web_scraper.py`,
 `document_downloader.py`, `metadata_archiver.py`, `file_converter.py`,
-`ocr_processor.py`, `language_analyzer.py`) and the `main.py` wiring of stages
-1-4 and 7.
+`ocr_processor.py`, `figure_extractor.py`, `language_analyzer.py`) and the
+`main.py` wiring.
 
 ```bash
 pip install -e '.[dev]'
@@ -30,9 +30,12 @@ No test performs a live network request or needs the system Tesseract binary:
   fixtures in `tmp_path` with the pipeline's own libraries, so no document
   fixtures are committed.
 
+- `tests/test_figure_extractor.py` generates page images with PIL and replaces
+  `pytesseract.image_to_data` with a stub, so figure detection and caption
+  association are deterministic without Tesseract.
 - `tests/test_language_analyzer.py` writes its text fixtures in `tmp_path`; the
   stage uses only the standard library, so nothing is stubbed.
 
 Fixtures are generated in `tmp_path`; the suite never touches the real
 `downloaded_documents/`, `archived_documents/`, `converted_documents/`,
-`ocr_texts/` or `language_analysis/` directories.
+`ocr_texts/`, `extracted_figures/` or `language_analysis/` directories.

@@ -9,7 +9,8 @@ deep-review pass (2026-08-02). Items are grouped by severity:
 
 Status markers: `[x]` completed (with commit reference), `[ ]` open/deferred.
 
-Last reviewed: 2026-08-02 (documentation deep-review pass).
+Last reviewed: 2026-08-02 (documentation deep-review pass); discovery and
+source-availability follow-up 2026-11-01.
 
 ---
 
@@ -62,6 +63,14 @@ Last reviewed: 2026-08-02 (documentation deep-review pass).
       (`.gitignore`) — ✓ `a972d88`
 - [x] Register the new documentation artifacts in the `.aii` sidecar manifest
       (`.aii/config.yaml`) — ✓ `b722eb6`
+- [x] Start discovery from link-bearing seeds: the `web3.isss.org` front end
+      links no documents, so `SEED_URLS` and `MAX_PAGES` now drive the crawl
+      (`main.py`, `web_scraper.py`, `document_downloader.py`) — ✓ `4a2f779`
+- [x] Record the 2026-11-01 source-availability measurement (front end exposes
+      three URLs and no documents; the corpus is reachable at legacy paths
+      linked from the society site) (`README.md`,
+      `docs/implementation-status.md`, `docs/configuration.md`,
+      `docs/architecture.md`) — ✓ `4a2f779`
 
 ## Major
 

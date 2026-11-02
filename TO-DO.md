@@ -11,7 +11,8 @@ Status markers: `[x]` completed (with commit reference), `[ ]` open/deferred.
 
 Last reviewed: 2026-08-02 (documentation deep-review pass); discovery and
 source-availability follow-up 2026-11-01; infrastructure (tests, CI,
-packaging) follow-up 2026-11-01.
+packaging) follow-up 2026-11-01; stage 4 (file conversion) implemented
+2026-11-02.
 
 ---
 
@@ -82,10 +83,11 @@ packaging) follow-up 2026-11-01.
 
 ## Open / deferred
 
-- [ ] Implement the three placeholder pipeline stages (`file_converter.py`,
-      `figure_extractor.py`, `language_analyzer.py`) — deferred: this is new
+- [ ] Implement the two remaining placeholder pipeline stages
+      (`figure_extractor.py`, `language_analyzer.py`) — deferred: this is new
       functionality beyond a documentation pass; the intended class
-      signatures are documented in `docs/implementation-status.md`
+      signatures are documented in `docs/implementation-status.md`. Stage 4
+      (`file_converter.py`) is done — see below.
 
 ## Completed after the documentation pass
 
@@ -96,3 +98,6 @@ packaging) follow-up 2026-11-01.
 - [x] Add `pyproject.toml` packaging metadata: dependencies and the dev extra
       live there, the Python floor is 3.12, and `requirements.txt` is removed
       with every reference updated — ✓ `7caaa45`
+- [x] Implement stage 4 (`file_converter.py`): documents convert to
+      `text/<name>.txt` and `pages/<name>/page-NNNN.png`, with a Tesseract
+      fallback for image-only PDF pages, and `main.py` now runs stages 1-4 — ✓ `e327f80`

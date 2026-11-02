@@ -1,10 +1,12 @@
 """ISSS document processing pipeline entry point.
 
 Discovers documents on the Open ISSS site (https://web3.isss.org), downloads
-them, and archives their metadata. The remaining pipeline stages (file
-conversion, OCR, figure extraction, language analysis) are not yet
-implemented; see docs/implementation-status.md for the current status of each
-stage.
+them, archives their metadata, and converts them into text and page images.
+The remaining pipeline stages (figure extraction and language analysis) are
+not yet implemented, and the OCR stage stays standalone: it consumes `.jpg`
+images, while the conversion stage emits PNG pages and already OCRs the pages
+whose PDF text layer is empty. See docs/implementation-status.md for the
+current status of each stage.
 
 Run from the repository root:
 
@@ -19,6 +21,7 @@ import os
 import aiohttp
 
 from document_downloader import DocumentDownloader
+from file_converter import FileConverter
 from metadata_archiver import MetadataArchiver
 from web_scraper import WebScraper
 
@@ -37,9 +40,10 @@ SEED_URLS = [
 MAX_PAGES = 250  # Upper bound on pages fetched in one discovery run.
 DOWNLOAD_PATH = 'downloaded_documents'  # Where downloaded files are saved.
 ARCHIVE_PATH = 'archived_documents'  # Where metadata.json is written.
+CONVERTED_PATH = 'converted_documents'  # Where converted text and page images are written.
 
-# Paths reserved for the pipeline stages that are not yet implemented.
-CONVERTED_PATH = 'converted_documents'
+# Paths for the stages main.py does not drive: the OCR module demo and the two
+# remaining placeholder stages.
 OCR_OUTPUT_PATH = 'ocr_texts'
 FIGURE_OUTPUT_PATH = 'extracted_figures'
 LANGUAGE_ANALYSIS_OUTPUT_PATH = 'language_analysis'
@@ -70,9 +74,14 @@ def main():
         document_path = os.path.join(DOWNLOAD_PATH, document_name)
         archiver.archive_metadata(document_path, url, document_name.split('.')[-1])
 
-    # Steps 4-7 (file conversion, OCR, figure extraction, language analysis)
-    # are not yet implemented; see docs/implementation-status.md.
-    print('Pipeline stages 4-7 (conversion, OCR, figures, language analysis) are not yet implemented.')
+    # Step 4: convert the downloaded documents into text and page images
+    converter = FileConverter(DOWNLOAD_PATH, CONVERTED_PATH)
+    converted = converter.convert_files()
+    print(f'Converted {len(converted)} document(s) into {CONVERTED_PATH}.')
+
+    # Steps 6-7 (figure extraction, language analysis) are not yet implemented;
+    # see docs/implementation-status.md. Stage 5 (OCR) remains standalone.
+    print('Pipeline stages 6-7 (figures, language analysis) are not yet implemented.')
 
 
 if __name__ == '__main__':

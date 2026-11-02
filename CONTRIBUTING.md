@@ -7,12 +7,15 @@ repository, make your changes on a branch, and open a pull request.
 ## Development setup
 
 1. Fork the repository on GitHub and clone your fork.
-2. Create a virtual environment and install the dependencies:
+2. Create a virtual environment (Python 3.12 or newer) and install the package
+   with its development dependencies:
    ```bash
    python -m venv .venv
    source .venv/bin/activate
-   pip install -r requirements.txt
+   pip install -e '.[dev]'
    ```
+   Runtime dependencies are declared in `pyproject.toml`; the `dev` extra adds
+   `pytest`, `pytest-cov` and `ruff`.
 3. For the OCR stage, install the system Tesseract binary
    (e.g. `brew install tesseract` on macOS, `apt install tesseract-ocr` on
    Debian/Ubuntu).
@@ -31,10 +34,16 @@ repository, make your changes on a branch, and open a pull request.
   if you implement one, follow the intended class signatures documented in
   [docs/implementation-status.md](docs/implementation-status.md) and wire it
   into `main()`.
-- **Testing.** There is currently no automated test suite. Before opening a
-  pull request, verify your changes manually and confirm the modules still
-  compile (`python -m py_compile <changed files>`). If you add a feature,
-  consider adding tests alongside it.
+- **Testing.** The suite in `tests/` covers the four implemented stages and
+  the `main.py` wiring. Run it before opening a pull request:
+  ```bash
+  pytest          # offline suite with a 90% coverage floor
+  ruff check .    # lint gate
+  ```
+  Tests must stay offline: use the fixtures in `tests/conftest.py` (a local
+  HTTP server plus stubs) instead of live requests, and keep fixtures small.
+  See [tests/README.md](tests/README.md). If you implement a placeholder
+  stage, add tests for it alongside the code.
 
 ## Pull request process
 

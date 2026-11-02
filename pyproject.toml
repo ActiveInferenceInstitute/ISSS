@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isss-document-pipeline"
+version = "0.1.0"
+description = "Document discovery, download, metadata archiving and OCR for the Open ISSS and society websites"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "aiohttp",
+    "Pillow",
+    "pytesseract",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+]
+
+[tool.setuptools]
+py-modules = [
+    "main",
+    "web_scraper",
+    "document_downloader",
+    "metadata_archiver",
+    "ocr_processor",
+    "file_converter",
+    "figure_extractor",
+    "language_analyzer",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--cov --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+source = [
+    "web_scraper",
+    "document_downloader",
+    "metadata_archiver",
+    "ocr_processor",
+    "main",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Core correctness and import hygiene. The repository states its own lint
+# contract instead of inheriting ruff's full default set, so the gate does not
+# shift when a new ruff release adds rules.
+select = ["E4", "E7", "E9", "F", "I"]

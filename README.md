@@ -36,10 +36,12 @@ must be pages that link documents.
 
 ## Getting Started
 
-1. **Initial Setup**: Install all necessary dependencies with
-   `pip install -r requirements.txt`. The OCR stage additionally requires the
-   system Tesseract binary (e.g. `brew install tesseract` on macOS,
-   `apt install tesseract-ocr` on Debian/Ubuntu).
+1. **Initial Setup**: Install the package and its dependencies with
+   `pip install -e '.[dev]'`; dependencies are declared in `pyproject.toml`
+   and the `dev` extra adds the test and lint tooling. The OCR stage
+   additionally requires the system Tesseract binary (e.g.
+   `brew install tesseract` on macOS, `apt install tesseract-ocr` on
+   Debian/Ubuntu).
 2. **Configuration**: Adjust the CONFIG block at the top of `main.py`,
    including `BASE_URL`, `SEED_URLS`, `MAX_PAGES`, `DOWNLOAD_PATH`, and the
    other output paths. See [docs/configuration.md](docs/configuration.md) for
@@ -53,12 +55,27 @@ Each implemented module can also be run standalone as a demo:
 
 ## Prerequisites
 
-- Python 3.7 or newer (the code uses f-strings and `asyncio.run`).
+- Python 3.12 or newer (declared in `pyproject.toml`).
 - `requests` and `beautifulsoup4` — web scraping (`web_scraper.py`).
 - `aiohttp` — asynchronous downloads (`document_downloader.py`).
 - `Pillow` and `pytesseract` plus the system Tesseract binary — OCR
   (`ocr_processor.py`).
 - The metadata archiver uses only the standard library.
+
+## Tests
+
+The suite covers the four implemented stages and the `main.py` wiring, and it
+runs offline: fixture pages come from an in-process server and the HTTP and OCR
+calls are stubbed, so no test needs network access or Tesseract.
+
+```bash
+pip install -e '.[dev]'
+pytest        # coverage floor 90% for the implemented modules
+ruff check .
+```
+
+CI runs both on Python 3.12, 3.13 and 3.14. See
+[tests/README.md](tests/README.md) for the details.
 
 ## Documentation
 
@@ -66,6 +83,7 @@ Each implemented module can also be run standalone as a demo:
 - [Pipeline architecture](docs/architecture.md)
 - [Configuration reference](docs/configuration.md)
 - [Implementation status](docs/implementation-status.md)
+- [Test suite](tests/README.md)
 - [TO-DO and roadmap](TO-DO.md)
 
 ## How to Contribute

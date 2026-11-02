@@ -158,3 +158,6 @@ converted_documents/
 ocr_texts/
 extracted_figures/
 language_analysis/
+
+# Test and lint caches
+.ruff_cache/

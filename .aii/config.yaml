@@ -1,6 +1,6 @@
 # AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
 meta:
-  updated: '2026-08-02'
+  updated: '2026-11-01'
 repo:
   name: ISSS
   slug: isss
@@ -41,6 +41,15 @@ artifacts:
 - path: REVIEW_LOG_2026-08-02.md
   kind: doc
   description: Documentation deep-review pass log.
+- path: pyproject.toml
+  kind: code
+  description: Package metadata, dependencies and tool configuration.
+- path: tests/
+  kind: code
+  description: Offline test suite for the four implemented stages and the main wiring.
+- path: .github/workflows/ci.yml
+  kind: code
+  description: CI workflow (lint, tests, coverage gate) on Python 3.12-3.14.
 provenance:
   license: MIT
   citation:
@@ -51,7 +60,11 @@ instituteos:
   - python
 capabilities:
 - documentation
+- tested
 tasks:
+  test:
+    cmd: pytest
+    description: Run the offline test suite.
   inventory:
     cmd: git ls-files
     description: List tracked files.

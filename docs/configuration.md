@@ -69,4 +69,4 @@ run `python main.py`.
 - `process_documents()` — processes every `.jpg` file in `input_path` and
   writes `<base_name>.txt` into `output_path`.
 - Requires the system Tesseract binary in addition to the Python packages
-  (see `requirements.txt`).
+  (declared in `pyproject.toml`).

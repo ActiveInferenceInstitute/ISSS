@@ -2,6 +2,7 @@ import asyncio
 import os
 
 import aiohttp
+
 from web_scraper import WebScraper  # Import the WebScraper class
 
 

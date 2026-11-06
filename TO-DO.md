@@ -93,7 +93,9 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
 - [x] Add automated tests and CI: `tests/` covers the four implemented stages
       and the `main.py` wiring offline (local fixture server, stubbed HTTP and
       OCR), with a 90% coverage floor; `.github/workflows/ci.yml` runs lint and
-      tests on Python 3.12-3.14 — ✓ `7caaa45`
+      tests on Python 3.12-3.14, plus the pinned GNN conformance baseline
+      (see `.github/GNN.md`; ISSS carries no `.gnn.md` model file, so the job
+      validates the pinned upstream exemplar) — ✓ `7caaa45`
 - [x] Add `pyproject.toml` packaging metadata: dependencies and the dev extra
       live there, the Python floor is 3.12, and `requirements.txt` is removed
       with every reference updated — ✓ `7caaa45`

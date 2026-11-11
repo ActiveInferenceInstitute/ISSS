@@ -127,8 +127,9 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
 
 ## Readiness standard gaps (measured 2026-11-11)
 
-Measured with the organization checker
-(`.github/scripts/check_readiness.py --repo ActiveInferenceInstitute/ISSS --path .`):
+Measured with the organization checker in the
+`ActiveInferenceInstitute/.github` repository
+(`scripts/check_readiness.py --repo ActiveInferenceInstitute/ISSS --path .`):
 the repository's declared `python-library` tier reports 20 pass, **15 fail**, 3
 unavailable (the `CORE-INHERIT-*` `github-api` criteria, offline) and 49
 not-applicable. None of these is a documentation defect and none is fixed in a

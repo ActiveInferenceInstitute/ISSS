@@ -1,11 +1,14 @@
-# AII sidecar — InstituteOS metadata. Schema: instituteos.platform.aii_sidecar
+# AII sidecar — InstituteOS metadata. Schema: aii_platform.aii_sidecar
 meta:
-  updated: '2026-11-02'
+  sidecar_version: 1.2.1
+  updated: '2026-11-10'
 repo:
   name: ISSS
   slug: isss
   full_name: ActiveInferenceInstitute/ISSS
-  description: Document processing pipeline for the Open ISSS site.
+  description: A seven-stage Python pipeline that discovers, downloads, archives,
+    converts, illustrates, and analyzes documents from the Open ISSS and International
+    Society for the Systems Sciences sites.
 institute:
   category: research-software
   steward: Active Inference Institute
@@ -28,7 +31,8 @@ artifacts:
   description: License.
 - path: docs/
   kind: doc
-  description: Documentation hub (index, architecture, configuration, implementation status).
+  description: Documentation hub (index, architecture, configuration, implementation
+    status).
 - path: CONTRIBUTING.md
   kind: doc
   description: Contribution guide.
@@ -50,6 +54,15 @@ artifacts:
 - path: .github/workflows/ci.yml
   kind: code
   description: CI workflow (lint, tests, coverage gate) on Python 3.12-3.14.
+- path: tests
+  kind: test
+  description: Test suite.
+- path: docs
+  kind: doc
+  description: Documentation tree.
+- path: AGENTS.md
+  kind: doc
+  description: Agent guidance.
 provenance:
   license: MIT
   citation:
@@ -57,10 +70,14 @@ provenance:
 instituteos:
   tags:
   - isss
+  - document-processing
+  - pipeline
   - python
 capabilities:
 - documentation
 - tested
+- python-package
+- ci
 tasks:
   test:
     cmd: pytest
@@ -68,3 +85,10 @@ tasks:
   inventory:
     cmd: git ls-files
     description: List tracked files.
+docs:
+- README.md
+- AGENTS.md
+- docs/INTEGRATION.md
+- docs/README.md
+- docs/AGENTS.md
+schema: aii-sidecar/v1

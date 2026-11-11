@@ -2,6 +2,18 @@
 
 Document processing pipeline for the Open ISSS site.
 
+## Layout
+
+- `main.py` — pipeline entry point that wires the seven stages together.
+- `web_scraper.py`, `document_downloader.py`, `metadata_archiver.py`,
+  `file_converter.py`, `ocr_processor.py`, `figure_extractor.py`,
+  `language_analyzer.py` — one module per pipeline stage; each is runnable
+  standalone as a demo.
+- `tests/` — offline pytest suite for the stages and the `main.py` wiring.
+- `docs/` — architecture, configuration and implementation-status references.
+- `pyproject.toml` — package metadata, dependencies and the pytest/ruff
+  configuration.
+
 ## Working notes
 
 - Repository: `ActiveInferenceInstitute/ISSS` (default branch `main`).
@@ -18,6 +30,7 @@ Document processing pipeline for the Open ISSS site.
 | --- | --- | --- |
 | `inventory` | `git ls-files` | `.` |
 | `test` | `pytest` | `.` |
+| `lint` | `ruff check .` | `.` |
 
 ## InstituteOS sidecar
 

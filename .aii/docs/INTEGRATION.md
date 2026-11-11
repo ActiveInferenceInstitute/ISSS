@@ -45,10 +45,9 @@
 | `TO-DO.md` | `doc` | Review findings and improvement roadmap. |
 | `REVIEW_LOG_2026-08-02.md` | `doc` | Documentation deep-review pass log. |
 | `pyproject.toml` | `code` | Package metadata, dependencies and tool configuration. |
+| `main.py` | `code` | Pipeline entry point that wires the seven stages together. |
 | `tests/` | `code` | Offline test suite for all seven pipeline stages and the main wiring. |
 | `.github/workflows/ci.yml` | `code` | CI workflow (lint, tests, coverage gate) on Python 3.12-3.14. |
-| `tests` | `test` | Test suite. |
-| `docs` | `doc` | Documentation tree. |
 | `AGENTS.md` | `doc` | Agent guidance. |
 
 ## Portable tasks
@@ -56,6 +55,7 @@
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
 | `test` | `pytest` | `.` | Run the offline test suite. |
+| `lint` | `ruff check .` | `.` | Lint the pipeline sources and tests. |
 | `inventory` | `git ls-files` | `.` | List tracked files. |
 
 ## Validation

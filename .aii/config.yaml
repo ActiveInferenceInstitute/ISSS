@@ -1,7 +1,7 @@
 # AII sidecar — InstituteOS metadata. Schema: aii_platform.aii_sidecar
 meta:
   sidecar_version: 1.2.1
-  updated: '2026-11-10'
+  updated: '2026-11-11'
 repo:
   name: ISSS
   slug: isss
@@ -48,18 +48,15 @@ artifacts:
 - path: pyproject.toml
   kind: code
   description: Package metadata, dependencies and tool configuration.
+- path: main.py
+  kind: code
+  description: Pipeline entry point that wires the seven stages together.
 - path: tests/
   kind: code
   description: Offline test suite for all seven pipeline stages and the main wiring.
 - path: .github/workflows/ci.yml
   kind: code
   description: CI workflow (lint, tests, coverage gate) on Python 3.12-3.14.
-- path: tests
-  kind: test
-  description: Test suite.
-- path: docs
-  kind: doc
-  description: Documentation tree.
 - path: AGENTS.md
   kind: doc
   description: Agent guidance.
@@ -82,6 +79,9 @@ tasks:
   test:
     cmd: pytest
     description: Run the offline test suite.
+  lint:
+    cmd: ruff check .
+    description: Lint the pipeline sources and tests.
   inventory:
     cmd: git ls-files
     description: List tracked files.

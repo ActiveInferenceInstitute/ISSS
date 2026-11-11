@@ -41,6 +41,7 @@ Institute repositories without touching this project's own content. The schema i
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
 | `test` | `pytest` | `.` | Run the offline test suite. |
+| `lint` | `ruff check .` | `.` | Lint the pipeline sources and tests. |
 | `inventory` | `git ls-files` | `.` | List tracked files. |
 
 ## Links

@@ -84,6 +84,26 @@ ruff check .
 CI runs both on Python 3.12, 3.13 and 3.14. See
 [tests/README.md](tests/README.md) for the details.
 
+## Status and readiness
+
+All seven pipeline stages are implemented and the offline suite passes today.
+Two things still need a network or a token:
+
+- **Discovery** depends on the live ISSS sites; `www.isss.org` has refused
+  connections intermittently, and the `web3.isss.org` front end links no
+  documents, so the corpus is reached through the configured seeds (see
+  [docs/implementation-status.md](docs/implementation-status.md)).
+- The OCR stage needs the system Tesseract binary. The tests stub it and run
+  without it.
+- The organization readiness checker's `github-api` criteria need an
+  authenticated token; offline it reports them `unavailable` (exit 3) rather
+  than a pass.
+
+The repository is measured against the standard's `python-library` tier. As of
+2026-11-11 that measurement has real, documented gaps — it does not yet adopt the
+uv-based lockfile toolchain the tier expects. The list and the reason each is
+deferred are in [TO-DO.md](TO-DO.md#readiness-standard-gaps-measured-2026-11-11).
+
 ## Documentation
 
 - [Documentation index](docs/README.md)

@@ -23,6 +23,13 @@ Document processing pipeline for the Open ISSS site.
   personal data, or unverified claims.
 - Read [`README.md`](README.md) first, then the nearest nested `AGENTS.md`.
 - Prefer small, verified changes; run the declared tasks before handing work back.
+- Documentation lives in [`docs/`](docs/README.md) (index, architecture,
+  configuration, implementation status) and [`tests/README.md`](tests/README.md).
+- Measured against the organization's `python-library` tier by
+  `.github/scripts/check_readiness.py`; the current gaps and their deferral
+  reasons are recorded in [`TO-DO.md`](TO-DO.md#readiness-standard-gaps-measured-2026-11-11).
+  Do not adopt a lockfile toolchain or change dependency pins as part of a
+  documentation change.
 
 ## Tasks
 

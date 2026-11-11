@@ -124,3 +124,51 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
       turns so one cannot spend the whole budget; `MAX_PAGES` stays the total
       across every seed. Before: 6 of 6 pages on one fixture site with 0
       documents; after: 4 pages, both seeds reached, 1 document — ✓ `ef9a686`
+
+## Readiness standard gaps (measured 2026-11-11)
+
+Measured with the organization checker
+(`.github/scripts/check_readiness.py --repo ActiveInferenceInstitute/ISSS --path .`):
+the repository's declared `python-library` tier reports 20 pass, **15 fail**, 3
+unavailable (the `CORE-INHERIT-*` `github-api` criteria, offline) and 49
+not-applicable. None of these is a documentation defect and none is fixed in a
+documentation pass; they are recorded here as the verified remainder.
+
+Blocking failures:
+
+- [ ] No tracked lock file (`CORE-LOCK`, `PY-UVLOCK`): the repository installs
+      with `pip install -e '.[dev]'` and ships no `uv.lock` (or other known
+      lockfile), so `CORE-DEPENDABOT-ECOSYSTEM` also fails with "no tracked lock
+      file matches a known ecosystem". Adopting uv and committing `uv.lock` is a
+      packaging change, deliberately not made here.
+- [ ] `PY-FROZEN` / `PY-UVLOCK-CHECK`: CI does not run `uv sync --frozen` or
+      `uv lock --check`.
+- [ ] `PY-MYPY-CONFIG`: `pyproject.toml` declares no `[tool.mypy]` section, so
+      `PY-MYPY-CI` also fails.
+- [ ] `PY-RUFF-CI`: CI runs `ruff check .` but no `ruff format --check`.
+- [ ] `PY-RUFF-EXTEND`: `pyproject.toml` states its lint contract with
+      `select = [...]` (line 74) rather than the standard's expected
+      `extend-select`; the file's comment says this is intentional so the gate
+      does not shift with a new ruff release. Changing it is an owner decision.
+- [ ] `PY-COVERAGE-RUN`: the CI job runs `pytest` but the standard expects an
+      explicit coverage invocation pattern in the workflow.
+
+Non-blocking failures: `PY-COMPLEXITY`, `PY-DEPTRY`, `PY-DURATIONS`,
+`PY-PRECOMMIT` (no `.pre-commit-config.yaml`), `PY-VULTURE`.
+
+Fixing these means adopting the standard's uv-based toolchain, which the
+documentation pass is not allowed to do (no dependency-pin, lockfile or action
+changes). The owner should decide whether ISSS adopts that toolchain or records
+non-expiring waivers with reasons in `.aii/readiness.json`.
+
+## Documentation pass 3 (2026-11-11)
+
+- [x] Confirmed `docs/` (index, architecture, configuration, implementation
+      status), `tests/README.md`, `README.md`, `AGENTS.md` and the `.aii`
+      sidecar against the tree; the docs are complete and modular. Registered
+      the readiness gaps above and bumped `readiness.json`'s
+      `standard_version` to the current catalogue `1.1.0`.
+- [ ] `.aii/docs/INTEGRATION.md` and `.aii/README.md` are rendered from
+      `.aii/config.yaml` by `aii_platform.aii_sidecar docs --overwrite`; that
+      package was unavailable offline, so any sidecar change must be hand-synced
+      until the private environment is available.

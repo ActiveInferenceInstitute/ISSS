@@ -12,7 +12,8 @@ Status markers: `[x]` completed (with commit reference), `[ ]` open/deferred.
 Last reviewed: 2026-08-02 (documentation deep-review pass); discovery and
 source-availability follow-up 2026-11-01; infrastructure (tests, CI,
 packaging) follow-up 2026-11-01; all seven pipeline stages implemented
-2026-11-02.
+2026-11-02; re-checked against `main` at `066b561` 2026-11-12 (PRs #17-#19
+recorded, readiness re-measured, GNN pin and `pymdp` confirmed).
 
 ---
 
@@ -87,6 +88,20 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
       run report that joins `metadata.json`, `figures.json` and
       `language_analysis.json` into one document record) — deferred: new
       functionality, not a documentation fix.
+- [ ] GNN pin is one release behind the estate cutover: `.github/gnn-pin.json`
+      records `v5.0.3` at `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`, while the
+      importer repositories moved to `v5.1.0` at
+      `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf` (tag list of
+      `ActiveInferenceInstitute/Generalized_Notation_Notation`, checked
+      2026-11-12). Bumping it is a pin change, not a documentation one: the
+      digest in `docs/workflows/publishing.md` (enforced by `./run.sh docs`),
+      the tag comment in `.github/workflows/ci.yml` and
+      `docs/_generated/gate-status.md` (via `./run.sh timings`) all have to
+      move with it. Blocked on the repository owner deciding whether ISSS, which
+      carries no `.gnn.md` model, follows the cutover.
+      The `inferactively-pymdp` 1.0.5 pin does not apply here: the tree
+      contains no reference to `pymdp` and the pipeline has no inference
+      dependency.
 
 ## Completed after the documentation pass
 
@@ -132,10 +147,12 @@ packaging) follow-up 2026-11-01; all seven pipeline stages implemented
 Measured with the organization checker in the
 `ActiveInferenceInstitute/.github` repository
 (`scripts/check_readiness.py --repo ActiveInferenceInstitute/ISSS --path .`):
-the repository's declared `python-library` tier reports 20 pass, **15 fail**, 3
-unavailable (the `CORE-INHERIT-*` `github-api` criteria, offline) and 49
-not-applicable. None of these is a documentation defect and none is fixed in a
-documentation pass; they are recorded here as the verified remainder.
+the repository's declared `python-library` tier reports 19 pass, **16 fail**, 0
+waived, 3 unavailable (the `CORE-INHERIT-*` `github-api` criteria, offline) and
+49 not-applicable. The 2026-11-11 reading was 20 pass / 15 fail; the extra
+failure is `PY-PYTEST-CI` (below), introduced by #16. None of these is a
+documentation defect and none is fixed in a documentation pass; they are
+recorded here as the verified remainder.
 
 Blocking failures:
 
@@ -148,16 +165,33 @@ Blocking failures:
       `uv lock --check`.
 - [ ] `PY-MYPY-CONFIG`: `pyproject.toml` declares no `[tool.mypy]` section, so
       `PY-MYPY-CI` also fails.
-- [ ] `PY-RUFF-CI`: CI runs `ruff check .` but no `ruff format --check`.
+- [ ] `PY-RUFF-CI`: the criterion requires both `ruff check` and
+      `ruff format --check` in `.github/workflows/ci.yml`; the workflow names
+      neither, and `./run.sh lint` runs `ruff check .` only. Adding a format
+      check is a lint-contract change (it would have to reformat the tree); the
+      owner decides it.
 - [ ] `PY-RUFF-EXTEND`: `pyproject.toml` states its lint contract with
       `select = [...]` (line 74) rather than the standard's expected
       `extend-select`; the file's comment says this is intentional so the gate
       does not shift with a new ruff release. Changing it is an owner decision.
-- [ ] `PY-COVERAGE-RUN`: the CI job runs `pytest` but the standard expects an
-      explicit coverage invocation pattern in the workflow.
+- [ ] `PY-COVERAGE-RUN`: the criterion requires a literal `--cov` in the
+      workflow; coverage comes from `addopts` at `pyproject.toml:47`, which
+      the workflow never restates.
+- [ ] `PY-PYTEST-CI`: the criterion requires a literal `pytest` in the
+      workflow; the steps call `./run.sh test`. This failure is new in the
+      2026-11-12 measurement and was introduced by #16, not by a lost test.
 
 Non-blocking failures: `PY-COMPLEXITY`, `PY-DEPTRY`, `PY-DURATIONS`,
 `PY-PRECOMMIT` (no `.pre-commit-config.yaml`), `PY-VULTURE`.
+
+`PY-RUFF-CI`, `PY-PYTEST-CI` and `PY-COVERAGE-RUN` all match literal commands
+inside `.github/workflows/ci.yml`. Since #16 the workflow runs no command of its
+own — every step is `./run.sh <arm>` — so those criteria now fail structurally,
+not because the repository stopped running ruff, pytest or coverage. The owner
+picks: teach the checker about gate delegation (a change in
+`ActiveInferenceInstitute/.github`, so outside this repository), restate the
+commands in the workflow (which undoes #16), or waive the three criteria in
+`.aii/readiness.json` with the reason above.
 
 Fixing these means adopting the standard's uv-based toolchain, which the
 documentation pass is not allowed to do (no dependency-pin, lockfile or action
@@ -197,6 +231,24 @@ therefore one script that CI also calls.
       would have to invent a contract. This is the same gap as `PY-MYPY-CONFIG`
       above and is an owner decision.
 
+## Publishing identity contract and gate follow-ups (2026-11-12)
+
+- [x] Adopt the pinned Publishing identity contract: `docs/workflows/publishing.md`
+      records the canonical copies and their digests,
+      `docs/workflows/record-identity.schema.json` is the unmodified canonical
+      schema, `scripts/gate/identity.py` verifies the schema and every recorded
+      digest, and `./run.sh docs` runs it before the Markdown link check. The
+      member's existing link, generated-page, test, coverage and GNN checks are
+      named there instead of duplicated — ✓ `a8b8d06` (PR #17).
+- [x] Align the gate help with the dispatcher and validate image targets:
+      `./run.sh help` prints the arms `run.sh` actually accepts,
+      `scripts/check_docs.py` resolves image targets as well as links,
+      `tests/test_check_docs.py` covers the new cases, and the docs index picked
+      up the added entries — ✓ `a7d43da` (PR #18).
+- [x] Resolve the paths declared in `.aii/config.yaml` relative to `.aii/`, and
+      correct `.aii/README.md` and `.aii/docs/INTEGRATION.md` to match — ✓
+      `066b561` (PR #19).
+
 ## Documentation pass 3 (2026-11-11)
 
 - [x] Confirmed `docs/` (index, architecture, configuration, implementation
@@ -204,7 +256,11 @@ therefore one script that CI also calls.
       sidecar against the tree; the docs are complete and modular. Registered
       the readiness gaps above and bumped `readiness.json`'s
       `standard_version` to the current catalogue `1.1.0`.
-- [ ] `.aii/docs/INTEGRATION.md` and `.aii/README.md` are rendered from
-      `.aii/config.yaml` by `aii_platform.aii_sidecar docs --overwrite`; that
-      package was unavailable offline, so any sidecar change must be hand-synced
-      until the private environment is available.
+- [ ] `.aii/docs/INTEGRATION.md` and `.aii/README.md` are presented as rendered
+      from `.aii/config.yaml` by `aii_platform.aii_sidecar docs --overwrite`.
+      The private environment is reachable now, but its `aii-platform` 0.3.2
+      exposes only `validate`, `scan`, `run`, `init`, `rollout`, `curate`,
+      `doctor` and `schema` — there is no `docs` subcommand — so the two files
+      stay hand-maintained. `python -m aii_platform.aii_sidecar validate <tree>`
+      passes on `main` at `066b561`; the renderer itself is owned by
+      InstituteOS, not by this repository.

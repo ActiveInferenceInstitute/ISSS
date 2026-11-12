@@ -14,11 +14,11 @@ CPython 3.13.18, 18 CPUs) on
 
 | Arm | Command | Before (s) | After (s) |
 | --- | --- | --- | --- |
-| `lint` | `./run.sh lint` | 0.06 | 0.08 |
-| `test` | `./run.sh test` | — (new) | 10.84 |
-| `test-cov` | `./run.sh test-cov` | 17.57 | 16.74 |
-| `docs` | `./run.sh docs` | — (new) | 2.51 |
-| `gnn` | `./run.sh gnn` | — (new) | 17.47 |
+| `lint` | `./run.sh lint` | 0.05 | 0.05 |
+| `test` | `./run.sh test` | — (new) | 6.85 |
+| `test-cov` | `./run.sh test-cov` | 7.75 | 7.74 |
+| `docs` | `./run.sh docs` | — (new) | 1.05 |
+| `gnn` | `./run.sh gnn` | — (new) | 1.56 |
 
 The old CI step is measured with the same interpreter that runs the arm
 (`python -m ruff check .`, `python -m pytest`). Each arm adds one `bash`
@@ -38,8 +38,8 @@ repeated, not for small deltas between two runs.
 
 | Measurement | Value |
 | --- | --- |
-| Tests collected | 70 |
-| Tests passed by the `test-cov` arm | 70 |
+| Tests collected | 81 |
+| Tests passed by the `test-cov` arm | 81 |
 | Coverage (gate: 90%) | 100.00% |
 
 The suite declares no pytest markers, so the default `test` arm runs all

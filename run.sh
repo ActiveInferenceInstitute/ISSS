@@ -6,7 +6,7 @@
 # hosted one, not a second copy of it.
 #
 #   ./run.sh lint      ruff check .                    (pyproject.toml lint contract)
-#   ./run.sh test      pytest without coverage         (default arm: the whole suite, fast)
+#   ./run.sh test      pytest without coverage         (the whole suite, fast)
 #   ./run.sh test-cov  pytest with the 90% coverage gate (same suite, instrumented)
 #   ./run.sh docs      Markdown links, generated docs and Publishing identity digests
 #   ./run.sh gnn       pinned GNN conformance (installs the pinned parser; needs network)

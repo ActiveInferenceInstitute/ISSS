@@ -3,8 +3,8 @@
 
 The repository declares no documentation toolchain (no mkdocs, no
 markdown-link-check), so this file is the documentation gate: it resolves every
-relative link and anchor in the tracked ``*.md`` files and reports the ones that
-do not exist. External URLs are not fetched — the gate stays offline.
+relative link, image target and Markdown anchor in the tracked ``*.md`` files
+and reports the ones that do not exist. External URLs are not fetched — the gate stays offline.
 
     python scripts/check_docs.py            # check the whole repository
     python scripts/check_docs.py docs/a.md  # check one file
@@ -21,7 +21,7 @@ import subprocess
 from pathlib import Path
 from urllib.parse import unquote
 
-LINK = re.compile(r"(?<!!)\[(?P<text>[^\]]*)\]\((?P<target>[^()\s]*(?:\([^()\s]*\)[^()\s]*)*)"
+LINK = re.compile(r"!?\[(?P<text>[^\]]*)\]\((?P<target>[^()\s]*(?:\([^()\s]*\)[^()\s]*)*)"
                   r"(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.+?)\s*$")
 FENCE = re.compile(r"^(?P<fence>```+|~~~+)")

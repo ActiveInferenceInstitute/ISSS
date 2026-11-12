@@ -57,6 +57,19 @@ def test_non_true_type_checker_result_fails(monkeypatch, sketch, outcome):
         gnn_conformance.verify(PIN)
 
 
+@pytest.mark.parametrize("outcome", [2, False, None, 0])
+def test_non_true_type_checker_result_fails_on_exemplar(monkeypatch, tmp_path, outcome):
+    _install_stub(monkeypatch, outcome)
+    monkeypatch.chdir(tmp_path)
+
+    def fake_urlretrieve(url, target):
+        target.write_text("## GNNSection\nX\n", encoding="utf-8")
+
+    monkeypatch.setattr(gnn_conformance.urllib.request, "urlretrieve", fake_urlretrieve)
+    with pytest.raises(SystemExit, match=r"did not pass .*expected True"):
+        gnn_conformance.verify(PIN)
+
+
 def test_repository_sketches_get_content_label_and_is_content(monkeypatch, sketch):
     calls = _install_stub(monkeypatch, True)
     receipt = gnn_conformance.verify(PIN)

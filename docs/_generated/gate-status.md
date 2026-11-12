@@ -14,19 +14,25 @@ CPython 3.13.18, 18 CPUs) on
 
 | Arm | Command | Before (s) | After (s) |
 | --- | --- | --- | --- |
-| `lint` | `./run.sh lint` | 0.05 | 0.09 |
-| `test` | `./run.sh test` | — (new) | 10.87 |
-| `test-cov` | `./run.sh test-cov` | 14.06 | 14.69 |
-| `docs` | `./run.sh docs` | — (new) | 3.41 |
-| `gnn` | `./run.sh gnn` | — (new) | 42.11 |
+| `lint` | `./run.sh lint` | 0.06 | 0.08 |
+| `test` | `./run.sh test` | — (new) | 10.84 |
+| `test-cov` | `./run.sh test-cov` | 17.57 | 16.74 |
+| `docs` | `./run.sh docs` | — (new) | 2.51 |
+| `gnn` | `./run.sh gnn` | — (new) | 17.47 |
 
 The old CI step is measured with the same interpreter that runs the arm
 (`python -m ruff check .`, `python -m pytest`). Each arm adds one `bash`
 start, which is the whole difference in the `lint` row — the command
-itself is unchanged. "Before" is the earlier workflow's step: every job
-ran `ruff check .` and `pytest` (with coverage) in each of its three
-Python legs, so the gate now does that work once instead of three times.
+itself is unchanged. "Before" is what the earlier workflow ran: `ruff
+check .` and `pytest` with coverage inside all three Python legs. The
+gate now lints once, gates coverage once, and runs the coverage-free arm
+on the two other versions, in the same job and install as lint and docs.
 `test`, `docs` and `gnn` had no separate step.
+
+Every number is one run on the host named above, which is shared with
+other work: the same command moves by seconds from run to run. Read the
+table for which work each arm does and which of it the earlier workflow
+repeated, not for small deltas between two runs.
 
 ## Suite
 
@@ -44,9 +50,8 @@ of it and only drops coverage instrumentation; `test-cov` adds the
 
 | Job key | Display name | Python | Arms |
 | --- | --- | --- | --- |
-| `lint` | (key) | "3.12" | lint |
-| `test` | test (${{ matrix.python-version }}) | ["3.12", "3.13", "3.14"] | test, test-cov |
-| `docs` | (key) | "3.12" | docs |
+| `gate` | gate (3.12) | "3.12" | lint, test-cov, docs |
+| `test` | test (${{ matrix.python-version }}) | ["3.13", "3.14"] | test |
 | `gnn-conformance` | gnn conformance (pinned) | "3.12" | gnn |
 
 ## Pinned GNN conformance

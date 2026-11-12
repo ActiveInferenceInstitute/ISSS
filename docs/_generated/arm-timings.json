@@ -11,30 +11,30 @@
       "name": "lint",
       "after_command": "./run.sh lint",
       "before_command": "python -m ruff check .",
-      "before_seconds": 0.05,
-      "after_seconds": 0.09
+      "before_seconds": 0.06,
+      "after_seconds": 0.08
     },
     {
       "name": "test",
       "after_command": "./run.sh test",
-      "after_seconds": 10.87
+      "after_seconds": 10.84
     },
     {
       "name": "test-cov",
       "after_command": "./run.sh test-cov",
       "before_command": "python -m pytest",
-      "before_seconds": 14.06,
-      "after_seconds": 14.69
+      "before_seconds": 17.57,
+      "after_seconds": 16.74
     },
     {
       "name": "gnn",
       "after_command": "./run.sh gnn",
-      "after_seconds": 42.11
+      "after_seconds": 17.47
     },
     {
       "name": "docs",
       "after_command": "./run.sh docs",
-      "after_seconds": 3.41
+      "after_seconds": 2.51
     }
   ],
   "suite": {

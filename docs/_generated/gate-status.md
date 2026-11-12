@@ -6,19 +6,19 @@
 
 The gate has one entry point, `./run.sh`, and every arm of it is the exact
 command `.github/workflows/ci.yml` runs. This page records what each arm
-costs on the host that measured it (macOS-27.2.1-arm64-arm-64bit-Mach-O,
-CPython 3.14.10, 14 CPUs) on
+costs on the host that measured it (macOS-27.0.1-arm64-arm-64bit-Mach-O,
+CPython 3.14.10, 18 CPUs) on
 2026-11-12.
 
 ## Arms
 
 | Arm | Command | Before (s) | After (s) |
 | --- | --- | --- | --- |
-| `lint` | `./run.sh lint` | 0.66 | 0.05 |
-| `test` | `./run.sh test` | — (new) | 13.22 |
-| `test-cov` | `./run.sh test-cov` | 25.77 | 7.11 |
-| `docs` | `./run.sh docs` | — (new) | 0.98 |
-| `gnn` | `./run.sh gnn` | — (new) | 1.43 |
+| `lint` | `./run.sh lint` | 0.03 | 0.04 |
+| `test` | `./run.sh test` | — (new) | 8.70 |
+| `test-cov` | `./run.sh test-cov` | 6.85 | 6.79 |
+| `docs` | `./run.sh docs` | — (new) | 0.68 |
+| `gnn` | `./run.sh gnn` | — (new) | 0.88 |
 
 The old CI step is measured with the same interpreter that runs the arm
 (`python -m ruff check .`, `python -m pytest`). Each arm adds one `bash`
@@ -38,8 +38,8 @@ repeated, not for small deltas between two runs.
 
 | Measurement | Value |
 | --- | --- |
-| Tests collected | 87 |
-| Tests passed by the `test-cov` arm | 87 |
+| Tests collected | 91 |
+| Tests passed by the `test-cov` arm | 91 |
 | Coverage (gate: 90%) | 100.00% |
 
 The suite declares no pytest markers, so the default `test` arm runs all

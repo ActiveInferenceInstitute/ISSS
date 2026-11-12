@@ -2,44 +2,44 @@
   "schema": "isss-gate-timings/v1",
   "recorded": "2026-11-12",
   "host": {
-    "platform": "macOS-27.2.1-arm64-arm-64bit-Mach-O",
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
     "python": "3.14.10",
-    "cpus": "14"
+    "cpus": "18"
   },
   "arms": [
     {
       "name": "lint",
       "after_command": "./run.sh lint",
       "before_command": "python -m ruff check .",
-      "before_seconds": 0.66,
-      "after_seconds": 0.05
+      "before_seconds": 0.03,
+      "after_seconds": 0.04
     },
     {
       "name": "test",
       "after_command": "./run.sh test",
-      "after_seconds": 13.22
+      "after_seconds": 8.7
     },
     {
       "name": "test-cov",
       "after_command": "./run.sh test-cov",
       "before_command": "python -m pytest",
-      "before_seconds": 25.77,
-      "after_seconds": 7.11
+      "before_seconds": 6.85,
+      "after_seconds": 6.79
     },
     {
       "name": "gnn",
       "after_command": "./run.sh gnn",
-      "after_seconds": 1.43
+      "after_seconds": 0.88
     },
     {
       "name": "docs",
       "after_command": "./run.sh docs",
-      "after_seconds": 0.98
+      "after_seconds": 0.68
     }
   ],
   "suite": {
-    "tests": 87,
-    "passed": 87,
+    "tests": 91,
+    "passed": 91,
     "coverage_percent": 100.0
   }
 }

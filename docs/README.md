@@ -31,7 +31,7 @@ local run is the same gate as a hosted one:
 | `lint` | `./run.sh lint` | `ruff check .` under the contract in `pyproject.toml`. |
 | `test` | `./run.sh test` | The whole suite without coverage instrumentation (default arm). |
 | `test-cov` | `./run.sh test-cov` | The same suite with the `--cov-fail-under=90` gate. |
-| `docs` | `./run.sh docs` | Relative Markdown links plus the generated-page freshness check. |
+| `docs` | `./run.sh docs` | [Publishing identity digests](workflows/publishing.md), relative Markdown links and generated-page freshness. |
 | `gnn` | `./run.sh gnn` | The pinned GNN conformance check; it installs the pinned parser, so it needs network. |
 | `ci` | `./run.sh ci` | Every arm above, in that order. |
 | `timings` | `./run.sh timings` | Re-measures the arms and regenerates [`_generated/`](_generated/README.md). |

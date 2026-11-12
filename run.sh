@@ -8,7 +8,7 @@
 #   ./run.sh lint      ruff check .                    (pyproject.toml lint contract)
 #   ./run.sh test      pytest without coverage         (default arm: the whole suite, fast)
 #   ./run.sh test-cov  pytest with the 90% coverage gate (same suite, instrumented)
-#   ./run.sh docs      relative Markdown links + generated-docs freshness
+#   ./run.sh docs      Markdown links, generated docs and Publishing identity digests
 #   ./run.sh gnn       pinned GNN conformance (installs the pinned parser; needs network)
 #   ./run.sh ci        lint, test, test-cov, docs, gnn
 #   ./run.sh timings   re-measure every arm, regenerate docs/_generated/
@@ -39,6 +39,10 @@ lint() { "$PY" -m ruff check .; }
 test_fast() { "$PY" -m pytest -q --no-cov; }
 test_cov() { "$PY" -m pytest; }
 docs() {
+  "$PY" scripts/gate/identity.py
+  "$PY" scripts/gate/identity.py --verify-copy docs/workflows/record-identity.schema.json
+  "$PY" scripts/gate/identity.py --verify-copy scripts/gate/identity.py
+  "$PY" scripts/gate/identity.py --verify-copy .github/gnn-pin.json
   "$PY" scripts/check_docs.py
   "$PY" scripts/gate_report.py --check
 }

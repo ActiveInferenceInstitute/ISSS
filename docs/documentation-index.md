@@ -12,6 +12,8 @@ find any page without walking the tree.
 | [AGENTS.md](../AGENTS.md) | Agent working notes for this repository: layout and tasks. |
 | [docs/README.md](README.md) | Documentation hub: contents, the gate, and the GNN pin. |
 | [documentation-index.md](documentation-index.md) | This index. |
+| [workflows/publishing.md](workflows/publishing.md) | Publishing contract pointer, ISSS migration and canonical artifact digests. |
+| [workflows/record-identity.schema.json](workflows/record-identity.schema.json) | Unmodified, digest-pinned canonical identity schema. |
 
 ## Pipeline
 

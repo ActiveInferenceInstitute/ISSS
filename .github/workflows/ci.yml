@@ -38,9 +38,14 @@ jobs:
 # 127.0.0.1, stubs every HTTP client, and replaces the OCR engine, so no job
 # needs the system Tesseract binary, network access or any secret.
 
-  # GNN pin: .github/gnn-pin.json (v5.0.3, 8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1)
+  # GNN baseline: .github/gnn-pin.json (v5.0.3, 8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1).
+  # This repository ships no *.gnn.md, so the job validates the pinned upstream
+  # exemplar: it proves the pin resolves and the pinned parser/syntax/type-check
+  # stages run. It is a pinned baseline check, not a conformance claim about
+  # repository content. The workflow has no link-check gate and this repository
+  # makes no such claim, so none is recorded here.
   gnn-conformance:
-    name: gnn conformance (pinned)
+    name: gnn baseline (pinned)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -59,9 +64,16 @@ jobs:
           from pathlib import Path
 
           pin = json.loads(Path(".github/gnn-pin.json").read_text(encoding="utf-8"))
-          assert pin["repository"] == "ActiveInferenceInstitute/Generalized_Notation_Notation"
-          assert pin["tag"] == "v5.0.3"
-          assert pin["revision"] == "8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1"
+          # Explicit checks, not `assert`: `python -O` strips asserts and would
+          # otherwise skip the pin-triple assertion entirely.
+          expected_pin = {
+              "repository": "ActiveInferenceInstitute/Generalized_Notation_Notation",
+              "tag": "v5.0.3",
+              "revision": "8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1",
+          }
+          for key, value in expected_pin.items():
+              if pin.get(key) != value:
+                  raise SystemExit(f"gnn-pin.json {key!r} is {pin.get(key)!r}, expected {value!r}")
           spec = (
               "generalized-notation-notation @ "
               f"git+https://github.com/{pin['repository']}.git@{pin['revision']}"
@@ -70,7 +82,7 @@ jobs:
               [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--no-deps", spec]
           )
           PY
-      - name: Verify pinned parser and repository sketches
+      - name: Verify pinned parser on repository sketches or the pinned exemplar
         run: |
           python - <<'PY'
           import json
@@ -94,7 +106,9 @@ jobs:
                   parsed = parse_gnn_formal(sketch)
                   if parsed is None or getattr(parsed, "parse_errors", None):
                       raise SystemExit(f"{sketch} did not parse cleanly")
-                  valid, errors = validate_gnn_syntax(sketch.read_text(encoding="utf-8"))
+                  valid, errors = validate_gnn_syntax(
+                      sketch.read_text(encoding="utf-8"), is_content=True
+                  )
                   if not valid:
                       raise SystemExit(f"{sketch} syntax errors: {errors!r}")
               with tempfile.TemporaryDirectory(prefix="repo-gnn-") as output_dir:
@@ -102,8 +116,12 @@ jobs:
                   model_dir.mkdir()
                   for index, sketch in enumerate(sketches):
                       shutil.copy2(sketch, model_dir / f"{index:03d}_{sketch.name}")
-                  if not GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)):
-                      raise SystemExit("GNN type checker rejected the repository sketches")
+                  type_check = GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir))
+                  if type_check is not True:
+                      raise SystemExit(
+                          "GNN type checker did not pass the repository sketches "
+                          f"(returned {type_check!r}; 2 means warnings or invalid files)"
+                      )
               checked = len(sketches)
               source = "repository"
           else:
@@ -118,14 +136,20 @@ jobs:
                   parsed = parse_gnn_formal(exemplar)
                   if parsed is None or getattr(parsed, "parse_errors", None):
                       raise SystemExit("pinned exemplar did not parse cleanly")
-                  valid, errors = validate_gnn_syntax(exemplar.read_text(encoding="utf-8"))
+                  valid, errors = validate_gnn_syntax(
+                      exemplar.read_text(encoding="utf-8"), is_content=True
+                  )
                   if not valid:
                       raise SystemExit(f"pinned exemplar syntax errors: {errors!r}")
                   model_dir = Path(output_dir) / "models"
                   model_dir.mkdir()
                   shutil.copy2(exemplar, model_dir / exemplar.name)
-                  if not GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)):
-                      raise SystemExit("GNN type checker rejected the pinned exemplar")
+                  type_check = GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir))
+                  if type_check is not True:
+                      raise SystemExit(
+                          "GNN type checker did not pass the pinned exemplar "
+                          f"(returned {type_check!r}; 2 means warnings or invalid files)"
+                      )
               checked = 1
               source = "pinned-exemplar"
 
@@ -136,7 +160,11 @@ jobs:
                       "pin-revision": pin["revision"],
                       "models": checked,
                       "source": source,
-                      "result": "verified",
+                      # Name what this run established: the pinned parser
+                      # parsed and syntax/type-checked the files in `source`.
+                      # It is not a conformance verdict for the repository when
+                      # `source` is the pinned upstream exemplar.
+                      "result": "content-pass" if source == "repository" else "baseline-pass",
                   },
                   sort_keys=True,
               )

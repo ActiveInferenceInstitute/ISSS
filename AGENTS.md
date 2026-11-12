@@ -46,6 +46,19 @@ Document processing pipeline for the Open ISSS site.
 | `test` | `pytest` | `.` |
 | `lint` | `ruff check .` | `.` |
 
+## Required local PR check
+
+The required GitHub status is `gate (local, 3.12)`. Use a clean checkout of
+the live PR head and a Python 3.12 environment with the editable dev install.
+Run `./run.sh lint`, `./run.sh test-cov` and `./run.sh docs` in one
+qualified GitVault test launch. The coverage arm enforces 90%. The
+version-matrix and pinned GNN jobs are optional checks.
+
+Keep the source-bound receipt and gate output. Verify the live PR head
+again before using GitVault's mapped `github-status` plan and apply
+workflow. Read back the required check and repeat verification if the
+head changes. [Run and publish the local PR check](README.md#required-local-pr-check).
+
 ## InstituteOS sidecar
 
 This repository carries a committed [`.aii/`](.aii/README.md) sidecar with curated

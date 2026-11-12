@@ -1,7 +1,7 @@
 # AII sidecar — InstituteOS metadata. Schema: aii_platform.aii_sidecar
 meta:
   sidecar_version: 1.2.1
-  updated: '2026-11-11'
+  updated: '2026-11-12'
 repo:
   name: ISSS
   slug: isss
@@ -76,19 +76,33 @@ capabilities:
 - python-package
 - ci
 tasks:
-  test:
-    cmd: pytest
-    description: Run the offline test suite.
   lint:
-    cmd: ruff check .
+    cmd: ./run.sh lint
     description: Lint the pipeline sources and tests.
-  inventory:
-    cmd: git ls-files
-    description: List tracked files.
+  test:
+    cmd: ./run.sh test
+    description: Run the offline test suite without coverage.
+  test-cov:
+    cmd: ./run.sh test-cov
+    description: Run the offline test suite with the coverage gate.
+  docs:
+    cmd: ./run.sh docs
+    description: Check docs/documentation-index.md and Markdown links, generated docs,
+      and the pinned Publishing identity artifacts. No manuscript command.
+  gnn:
+    cmd: ./run.sh gnn
+    description: Run GNN conformance using .github/gnn-pin.json; requires network.
+  ci:
+    cmd: ./run.sh ci
+    description: Run lint, test, test-cov, docs and gnn.
+  timings:
+    cmd: ./run.sh timings
+    description: Measure gate arms and regenerate docs/_generated/.
 docs:
 - README.md
 - AGENTS.md
-- docs/INTEGRATION.md
+- .aii/docs/INTEGRATION.md
 - docs/README.md
-- docs/AGENTS.md
+- docs/documentation-index.md
+- docs/workflows/publishing.md
 schema: aii-sidecar/v1

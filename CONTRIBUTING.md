@@ -34,11 +34,13 @@ repository, make your changes on a branch, and open a pull request.
   [docs/implementation-status.md](docs/implementation-status.md) or update the
   contract and the dependent stages together.
 - **Testing.** The suite in `tests/` covers all seven stages and the `main.py`
-  wiring. Run it before opening a pull request:
+  wiring. Run the gate before opening a pull request:
   ```bash
-  pytest          # offline suite with a 90% coverage floor
-  ruff check .    # lint gate
+  ./run.sh ci     # lint, fast tests, coverage gate, docs links, GNN conformance
   ```
+  Each arm also runs alone: `./run.sh lint`, `./run.sh test`, `./run.sh
+  test-cov`, `./run.sh docs`, `./run.sh gnn`. These are the commands CI runs.
+  `pytest` (90% coverage floor) and `ruff check .` are the underlying commands.
   Tests must stay offline: use the fixtures in `tests/conftest.py` (a local
   HTTP server plus stubs) instead of live requests, and keep fixtures small.
   See [tests/README.md](tests/README.md). Keep the stage contracts and add

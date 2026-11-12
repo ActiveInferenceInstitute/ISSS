@@ -7,12 +7,16 @@ The suite covers all seven implemented pipeline stages (`web_scraper.py`,
 
 ```bash
 pip install -e '.[dev]'
-pytest
+./run.sh test      # the whole suite, offline
+./run.sh test-cov  # the same suite with the 90% coverage floor
+./run.sh lint      # ruff check .
 ```
 
-`pytest` runs with coverage for the implemented modules and a 90% floor (the
-current suite reaches 100%); `ruff check .` is the lint gate. Both run in CI on
-Python 3.12, 3.13 and 3.14.
+`./run.sh` is the repository's single gate entry point and CI calls the same
+arms. `pytest` runs with coverage for the implemented modules and a 90% floor;
+the suite reaches 100%. Both arms run in CI on Python 3.12, 3.13 and 3.14
+(the coverage gate on 3.12). The collected test count and the measured arm
+times are in [../docs/_generated/gate-status.md](../docs/_generated/gate-status.md).
 
 ## The suite is offline
 

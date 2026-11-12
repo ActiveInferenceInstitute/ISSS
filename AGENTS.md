@@ -10,7 +10,13 @@ Document processing pipeline for the Open ISSS site.
   `language_analyzer.py` — one module per pipeline stage; each is runnable
   standalone as a demo.
 - `tests/` — offline pytest suite for the stages and the `main.py` wiring.
-- `docs/` — architecture, configuration and implementation-status references.
+- `run.sh` — the gate entry point; its arms (`lint`, `test`, `test-cov`,
+  `docs`, `gnn`) are the commands CI runs.
+- `scripts/` — `gnn_conformance.py` (the pinned GNN check),
+  `check_docs.py` (relative Markdown links) and `gate_report.py` (measures the
+  arms and renders `docs/_generated/gate-status.md`).
+- `docs/` — architecture, configuration and implementation-status references,
+  plus the generated gate status under `docs/_generated/`.
 - `pyproject.toml` — package metadata, dependencies and the pytest/ruff
   configuration.
 

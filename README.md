@@ -77,11 +77,16 @@ the test directory, so no test needs network access or Tesseract.
 
 ```bash
 pip install -e '.[dev]'
-pytest        # coverage floor 90% for the implemented modules
-ruff check .
+./run.sh ci        # every gate arm: lint, tests, coverage, docs, GNN conformance
 ```
 
-CI runs both on Python 3.12, 3.13 and 3.14. See
+`./run.sh` is the gate entry point: `./run.sh lint`, `./run.sh test` (the whole
+suite without coverage), `./run.sh test-cov` (the suite with the 90% floor),
+`./run.sh docs` and `./run.sh gnn` each run one arm, and CI calls the same
+arms. `pytest` and `ruff check .` remain the underlying commands. The measured
+wall time of each arm is recorded in
+[docs/_generated/gate-status.md](docs/_generated/gate-status.md); the suite
+runs on Python 3.12, 3.13 and 3.14. See
 [tests/README.md](tests/README.md) for the details.
 
 ## Status and readiness

@@ -46,9 +46,11 @@ recorded in [_generated/gate-status.md](_generated/gate-status.md), which
 [_generated/arm-timings.json](_generated/arm-timings.json). Do not copy those
 numbers into prose; `./run.sh docs` fails when the page and its data diverge.
 
-`.github/workflows/ci.yml` has four jobs — `lint` (`3.12`), `test` (matrix
-`3.12`/`3.13`/`3.14`, with the coverage gate on `3.12` only), `docs` (`3.12`)
-and `gnn-conformance`, which displays as `gnn conformance (pinned)`.
+`.github/workflows/ci.yml` has three jobs: `gate` (`3.12`, which runs `lint`,
+`test-cov` and `docs` on one install), `test` (`3.13` and `3.14`, each running
+the coverage-free arm) and `gnn-conformance`, which displays as
+`gnn conformance (pinned)`. [_generated/gate-status.md](_generated/gate-status.md)
+carries the exact keys, versions and arms.
 
 ## GNN pin
 

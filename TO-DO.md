@@ -175,10 +175,11 @@ therefore one script that CI also calls.
       `timings` (re-measure and regenerate the generated page). `pytest` and
       `ruff check .` remain the underlying commands, so the `.aii` sidecar's
       portable tasks stay accurate.
-- [x] Duplicated CI work removed: lint moved out of the three-version matrix
-      into its own job, coverage instrumentation and the 90% gate run on the
-      `3.12` leg only, and the other two legs run the coverage-free arm. Every
-      job step calls an arm; no workflow step restates a command.
+- [x] Duplicated CI work removed: one `gate` job on `3.12` installs once and
+      runs `lint`, `test-cov` and `docs`; the `test` matrix keeps `3.13` and
+      `3.14` and runs only the coverage-free arm, so no leg runs the suite
+      twice and lint/docs cost no extra install. Every job step calls an arm;
+      no workflow step restates a command.
 - [x] The GNN conformance check left the workflow YAML: it is
       `scripts/gnn_conformance.py` with separate `--check-pin` (offline
       schema/revision validation), `--install` and `--verify` modes, and

@@ -164,6 +164,38 @@ documentation pass is not allowed to do (no dependency-pin, lockfile or action
 changes). The owner should decide whether ISSS adopts that toolchain or records
 non-expiring waivers with reasons in `.aii/readiness.json`.
 
+## Gate and CI consolidation (2026-11-12)
+
+Hosted GitHub Actions runs are unavailable in this estate (billing lock), so a
+local run of the arms is the only evidence a change is green. The gate is
+therefore one script that CI also calls.
+
+- [x] Single entry point `./run.sh` with separately runnable arms `lint`,
+      `test`, `test-cov`, `docs`, `gnn`, plus `ci` (all arms in order) and
+      `timings` (re-measure and regenerate the generated page). `pytest` and
+      `ruff check .` remain the underlying commands, so the `.aii` sidecar's
+      portable tasks stay accurate.
+- [x] Duplicated CI work removed: lint moved out of the three-version matrix
+      into its own job, coverage instrumentation and the 90% gate run on the
+      `3.12` leg only, and the other two legs run the coverage-free arm. Every
+      job step calls an arm; no workflow step restates a command.
+- [x] The GNN conformance check left the workflow YAML: it is
+      `scripts/gnn_conformance.py` with separate `--check-pin` (offline
+      schema/revision validation), `--install` and `--verify` modes, and
+      `./run.sh gnn` runs acquisition then verification as the old two steps
+      did.
+- [x] Documentation gate: the repository has no mkdocs, markdown-link-check or
+      documentation script, so `scripts/check_docs.py` checks relative targets
+      and anchors of every tracked Markdown file, and
+      `scripts/gate_report.py --check` refuses a stale generated page.
+- [x] Measured arm wall times, the collected test count and the coverage figure
+      live in `docs/_generated/gate-status.md`, rendered by
+      `scripts/gate_report.py` from `docs/_generated/arm-timings.json`; no
+      number is hand-written.
+- [ ] No `types` arm: the repository configures no type checker, so an arm
+      would have to invent a contract. This is the same gap as `PY-MYPY-CONFIG`
+      above and is an owner decision.
+
 ## Documentation pass 3 (2026-11-11)
 
 - [x] Confirmed `docs/` (index, architecture, configuration, implementation

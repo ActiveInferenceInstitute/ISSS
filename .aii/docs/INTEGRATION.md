@@ -54,9 +54,13 @@
 
 | Task | Command | Working directory | Description |
 | --- | --- | --- | --- |
-| `test` | `pytest` | `.` | Run the offline test suite. |
-| `lint` | `ruff check .` | `.` | Lint the pipeline sources and tests. |
-| `inventory` | `git ls-files` | `.` | List tracked files. |
+| `lint` | `./run.sh lint` | `.` | Lint the pipeline sources and tests. |
+| `test` | `./run.sh test` | `.` | Run the offline test suite without coverage. |
+| `test-cov` | `./run.sh test-cov` | `.` | Run the offline test suite with the coverage gate. |
+| `docs` | `./run.sh docs` | `.` | Check docs/documentation-index.md and Markdown links, generated docs, and the pinned Publishing identity artifacts. No manuscript command. |
+| `gnn` | `./run.sh gnn` | `.` | Run GNN conformance using .github/gnn-pin.json; requires network. |
+| `ci` | `./run.sh ci` | `.` | Run lint, test, test-cov, docs and gnn. |
+| `timings` | `./run.sh timings` | `.` | Measure gate arms and regenerate docs/_generated/. |
 
 ## Validation
 

@@ -15,7 +15,10 @@ Modes:
 ``--verify``
     Import the installed parser, confirm its version, then parse and
     type-check every ``*.gnn.md`` sketch in the repository. When the repository
-    has no sketch, parse the pinned upstream immediacy exemplar instead.
+    has no sketch, parse the pinned upstream immediacy exemplar instead. The
+    type check must return exactly ``True``. The printed ``result`` is
+    ``repository-content-passed`` or ``pinned-exemplar-baseline-passed``
+    according to what was checked.
 
 ``--install`` and ``--verify`` are separate because CI splits acquisition from
 verification; ``./run.sh gnn`` runs both in order.
@@ -90,9 +93,19 @@ def verify(pin: dict) -> dict:
         parsed = parse_gnn_formal(sketch)
         if parsed is None or getattr(parsed, "parse_errors", None):
             raise SystemExit(f"{label} did not parse cleanly")
-        valid, errors = validate_gnn_syntax(sketch.read_text(encoding="utf-8"))
+        valid, errors = validate_gnn_syntax(sketch.read_text(encoding="utf-8"), is_content=True)
         if not valid:
             raise SystemExit(f"{label} syntax errors: {errors!r}")
+
+    def type_check(model_dir: Path, output_dir: Path, label: str) -> None:
+        # validate_gnn_files returns True only when every file validates; 2 means
+        # invalid files or no files found, False a hard failure. A truthiness test
+        # would let 2 pass, so require exactly True.
+        outcome = GNNTypeChecker().validate_gnn_files(model_dir, output_dir)
+        if outcome is not True:
+            raise SystemExit(
+                f"GNN type checker did not pass the {label} (returned {outcome!r}; expected True)"
+            )
 
     sketches = sorted(Path(".").rglob("*.gnn.md"))
     with tempfile.TemporaryDirectory(prefix="isss-gnn-") as output_dir:
@@ -102,8 +115,7 @@ def verify(pin: dict) -> dict:
             for sketch in sketches:
                 check(sketch, str(sketch))
                 shutil.copy2(sketch, model_dir / f"{len(list(model_dir.iterdir())):03d}_{sketch.name}")
-            if not GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)):
-                raise SystemExit("GNN type checker rejected the repository sketches")
+            type_check(model_dir, Path(output_dir), "repository sketches")
             checked, source = len(sketches), "repository"
         else:
             exemplar_url = (
@@ -113,8 +125,7 @@ def verify(pin: dict) -> dict:
             exemplar = model_dir / Path(EXEMPLAR_PATH).name
             urllib.request.urlretrieve(exemplar_url, exemplar)
             check(exemplar, "pinned exemplar")
-            if not GNNTypeChecker().validate_gnn_files(model_dir, Path(output_dir)):
-                raise SystemExit("GNN type checker rejected the pinned exemplar")
+            type_check(model_dir, Path(output_dir), "pinned exemplar")
             checked, source = 1, "pinned-exemplar"
 
     return {
@@ -122,7 +133,12 @@ def verify(pin: dict) -> dict:
         "pin-revision": pin["revision"],
         "models": checked,
         "source": source,
-        "result": "verified",
+        # An exemplar-only run proves the pipeline and pin work, not repository content.
+        "result": (
+            "repository-content-passed"
+            if source == "repository"
+            else "pinned-exemplar-baseline-passed"
+        ),
     }
 
 

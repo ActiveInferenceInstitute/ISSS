@@ -12,3 +12,8 @@ in the repository, and type-checks them. When the repository has no sketch yet,
 it parses the pinned upstream `input/gnn_files/basics/static_perception.md`
 exemplar; this is a pipeline and pin conformance baseline, not a claim that the
 repository already contains a model.
+
+The type check must return exactly `True`; `2` (invalid files or none found) and
+`False` fail the job. The printed receipt's `result` is
+`repository-content-passed` when repository sketches were checked and
+`pinned-exemplar-baseline-passed` when only the pinned exemplar was.

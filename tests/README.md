@@ -39,6 +39,8 @@ No test performs a live network request or needs the system Tesseract binary:
   association are deterministic without Tesseract.
 - `tests/test_language_analyzer.py` writes its text fixtures in `tmp_path`; the
   stage uses only the standard library, so nothing is stubbed.
+- `tests/test_check_docs.py` checks local Markdown link and image targets,
+  missing-target diagnostics and the offline handling of external URLs.
 
 Fixtures are generated in `tmp_path`; the suite never touches the real
 `downloaded_documents/`, `archived_documents/`, `converted_documents/`,

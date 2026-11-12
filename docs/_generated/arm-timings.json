@@ -11,35 +11,35 @@
       "name": "lint",
       "after_command": "./run.sh lint",
       "before_command": "python -m ruff check .",
-      "before_seconds": 0.06,
-      "after_seconds": 0.08
+      "before_seconds": 0.05,
+      "after_seconds": 0.05
     },
     {
       "name": "test",
       "after_command": "./run.sh test",
-      "after_seconds": 10.84
+      "after_seconds": 6.85
     },
     {
       "name": "test-cov",
       "after_command": "./run.sh test-cov",
       "before_command": "python -m pytest",
-      "before_seconds": 17.57,
-      "after_seconds": 16.74
+      "before_seconds": 7.75,
+      "after_seconds": 7.74
     },
     {
       "name": "gnn",
       "after_command": "./run.sh gnn",
-      "after_seconds": 17.47
+      "after_seconds": 1.56
     },
     {
       "name": "docs",
       "after_command": "./run.sh docs",
-      "after_seconds": 2.51
+      "after_seconds": 1.05
     }
   ],
   "suite": {
-    "tests": 70,
-    "passed": 70,
+    "tests": 81,
+    "passed": 81,
     "coverage_percent": 100.0
   }
 }

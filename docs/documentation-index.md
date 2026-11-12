@@ -41,4 +41,9 @@ find any page without walking the tree.
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Setup, guidelines and the pull request process. |
 | [SECURITY.md](../SECURITY.md) | How to report a security issue. |
 | [REVIEW_LOG_2026-08-02.md](../REVIEW_LOG_2026-08-02.md) | Audit trail of the 2026-08-02 documentation deep-review pass. |
+| [.aii/README.md](../.aii/README.md) | InstituteOS sidecar overview, metadata profile and portable tasks. |
+| [.aii/AGENTS.md](../.aii/AGENTS.md) | Agent rules for maintaining the sidecar metadata. |
+| [.aii/docs/README.md](../.aii/docs/README.md) | Sidecar documentation guide. |
+| [.aii/docs/AGENTS.md](../.aii/docs/AGENTS.md) | Agent rules for the sidecar documents. |
+| [.aii/docs/INTEGRATION.md](../.aii/docs/INTEGRATION.md) | InstituteOS federation, validation and operation of this repository. |
 | [../LICENSE](../LICENSE) | MIT license text. |

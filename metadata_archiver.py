@@ -1,51 +1,60 @@
+"""Batch archival of qualified acquisition receipts; historical records stay intact."""
+
 import json
-import os
-from datetime import datetime
+from pathlib import Path
+
+from document_downloader import DownloadReceipt
+from pipeline_artifacts import atomic_json
 
 
 class MetadataArchiver:
     def __init__(self, archive_path):
-        """Initializes the MetadataArchiver with a specified archive path.
-        
-        Args:
-            archive_path (str): The path where the archive and metadata file will be stored.
-        """
-        self.archive_path = archive_path
-        # Ensure the archive directory exists
-        os.makedirs(archive_path, exist_ok=True)
-        self.metadata_file = os.path.join(archive_path, 'metadata.json')
-        # Initialize an empty metadata file if it does not exist
-        if not os.path.isfile(self.metadata_file):
-            with open(self.metadata_file, 'w') as file:
-                json.dump([], file)
+        self.metadata_file = Path(archive_path) / 'metadata.json'
+        if not self.metadata_file.exists():
+            atomic_json(self.metadata_file, [])
 
-    def archive_metadata(self, document_path, url, document_type):
-        """Archives metadata for a given document.
-        
-        Args:
-            document_path (str): The path to the document being archived.
-            url (str): The source URL of the document.
-            document_type (str): The type of the document (e.g., pdf, docx).
-        """
-        metadata = {
-            'document_name': os.path.basename(document_path),
-            'document_path': document_path,
-            'source_url': url,
-            'document_type': document_type,
-            'download_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    def archive_receipts(self, receipts):
+        """Validate the entire batch before one atomic archive publication."""
+        receipts = list(receipts)
+        for receipt in receipts:
+            if not isinstance(receipt, DownloadReceipt):
+                raise ValueError('metadata requires a DownloadReceipt')
+            receipt.validate()
+        existing = json.loads(self.metadata_file.read_text(encoding='utf-8'))
+        if not isinstance(existing, list) or any(not isinstance(row, dict) for row in existing):
+            raise ValueError('metadata archive must be an array of records')
+        identity_fields = ('source_url', 'sha256', 'size', 'download_date', 'document_name')
+        identities = {
+            tuple(row.get(field) for field in identity_fields)
+            for row in existing
+            if all(field in row for field in identity_fields)
         }
-        # Safely read and update existing metadata
-        with open(self.metadata_file, 'r+') as file:
-            existing_metadata = json.load(file)
-            existing_metadata.append(metadata)
-            file.seek(0)  # Rewind to the start of the file
-            json.dump(existing_metadata, file, indent=4)
-            file.truncate()  # Remove any remaining parts of the old data
+        added = []
+        for receipt in receipts:
+            row = {
+                'document_name': receipt.document_name,
+                'document_path': receipt.document_path,
+                'source_url': receipt.source_url,
+                'document_type': Path(receipt.document_name).suffix.lstrip('.').lower(),
+                'download_date': receipt.download_date,
+                'sha256': receipt.sha256,
+                'size': receipt.size,
+                'final_url': receipt.final_url,
+            }
+            identity = tuple(row[field] for field in identity_fields)
+            if identity not in identities:
+                added.append(row)
+                identities.add(identity)
+        if added:
+            atomic_json(self.metadata_file, existing + added)
+        return added
+
 
 if __name__ == '__main__':
-    # Demonstration of usage
-    archiver = MetadataArchiver('archived_documents')
-    document_path = 'downloaded_documents/example_document.pdf'
-    url = 'http://example.com/example_document.pdf'
-    document_type = 'pdf'
-    archiver.archive_metadata(document_path, url, document_type)
+    receipts = []
+    for path in sorted(Path('downloaded_documents/.receipts').glob('*.json')):
+        data = json.loads(path.read_text(encoding='utf-8'))
+        if data.pop('schema', None) != 'isss-download/v1':
+            raise ValueError(f'invalid receipt: {path}')
+        receipts.append(DownloadReceipt(**data))
+    MetadataArchiver('archived_documents').archive_receipts(receipts)

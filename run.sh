@@ -11,7 +11,7 @@
 #   ./run.sh docs      Markdown links, generated docs and Publishing identity digests
 #   ./run.sh gnn       pinned GNN conformance (installs the pinned parser; needs network)
 #   ./run.sh ci        lint, test, test-cov, docs, gnn
-#   ./run.sh timings   re-measure every arm, regenerate docs/_generated/
+#   ./run.sh timings   re-measure (--offline retains GNN as historical/unmeasured)
 #   ./run.sh list      list arms
 #
 # There is no types arm: the repository declares no type checker (no
@@ -44,7 +44,7 @@ docs() {
   "$PY" scripts/gate/identity.py --verify-copy scripts/gate/identity.py
   "$PY" scripts/gate/identity.py --verify-copy .github/gnn-pin.json
   "$PY" scripts/check_docs.py
-  "$PY" scripts/gate_report.py --check
+  "$PY" scripts/gate_report.py --check "$@"
 }
 gnn() {
   "$PY" scripts/gnn_conformance.py --install
@@ -59,7 +59,7 @@ case "${1:-help}" in
   lint) lint ;;
   test) test_fast ;;
   test-cov) test_cov ;;
-  docs) docs ;;
+  docs) docs "${@:2}" ;;
   gnn) gnn ;;
   ci)
     lint
@@ -68,7 +68,7 @@ case "${1:-help}" in
     docs
     gnn
     ;;
-  timings) exec "$PY" scripts/gate_report.py --capture ;;
+  timings) exec "$PY" scripts/gate_report.py --capture "${@:2}" ;;
   list)
     printf '%s\n' lint test test-cov docs gnn ci timings list
     ;;

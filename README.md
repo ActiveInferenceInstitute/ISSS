@@ -5,9 +5,7 @@ A Python pipeline that discovers documents on the Open ISSS site
 Sciences site (`https://www.isss.org`), downloads them, archives their
 metadata, and converts, illustrates and analyses them.
 
-The pipeline is designed as seven stages, all of them implemented. See
-[docs/implementation-status.md](docs/implementation-status.md) for the
-artifacts and contracts of every stage.
+The seven stages are implemented, with source-bound download receipts and active-generation artifact discovery. See [implementation status](docs/implementation-status.md) for contracts and historical evidence; local regressions do not qualify current site availability, OCR accuracy, or scientific heuristics.
 
 ## Source availability (checked 2026-11-01)
 
@@ -48,11 +46,7 @@ must be pages that link documents.
 3. **Run the Pipeline**: Initiate the implemented stages with
    `python main.py`.
 
-Each implemented module can also be run standalone as a demo:
-`python web_scraper.py`, `python document_downloader.py`,
-`python metadata_archiver.py`, `python file_converter.py`,
-`python figure_extractor.py`, `python ocr_processor.py`,
-`python language_analyzer.py`.
+Module entry points remain available as demos. They report incomplete discovery/download outcomes nonzero rather than treating successful peers or an empty failed crawl as a complete run. Production discovery and OCR still require their actual external inputs and tools.
 
 ## Prerequisites
 
@@ -203,8 +197,7 @@ gh pr checks "$PR_NUMBER" --repo "$repo" --required --json name,state,bucket |
 
 ## Status and readiness
 
-All seven pipeline stages are implemented and the offline suite passes today.
-Two things still need a network or a token:
+Governed offline regression acceptance exercised current stages and artifact consumers with the declared coverage floor. It is not hosted, live-site, real-OCR, or scientific qualification. Remaining external boundaries include:
 
 - **Discovery** depends on the live ISSS sites; `www.isss.org` has refused
   connections intermittently, and the `web3.isss.org` front end links no

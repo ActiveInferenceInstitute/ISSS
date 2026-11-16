@@ -1,8 +1,6 @@
 # Implementation Status
 
-Current implementation status of each pipeline stage, verified against the
-repository contents (2026-08-02; source availability re-checked 2026-11-01;
-stages 4, 6 and 7 implemented 2026-11-02).
+Current artifact contracts below describe the 2026-11-13 source and governed offline regression qualification. Dated source-availability and live-run sections remain historical, not refreshed observations.
 
 ## Source availability (checked 2026-11-01)
 
@@ -35,10 +33,10 @@ directory path alone yields nothing.
 | 1. Web scraping | `web_scraper.py` | `WebScraper` crawls from the configured seeds and collects document URLs. Runnable standalone: `python web_scraper.py`. |
 | 2. Document download | `document_downloader.py` | `DocumentDownloader` downloads the discovered URLs concurrently. Runnable standalone: `python document_downloader.py`. See the download contract below. |
 | 3. Metadata archiving | `metadata_archiver.py` | `MetadataArchiver` appends records to `metadata.json`. Runnable standalone: `python metadata_archiver.py`. |
-| 4. File conversion | `file_converter.py` | `FileConverter` writes `text/<name>.txt` and `pages/<name>/page-NNNN.png` per document. Runnable standalone: `python file_converter.py`. See the conversion contract below. |
+| 4. File conversion | `file_converter.py` | Immutable text/page generations selected by `active.json`, with source/output hashes and retained `record.json`. |
 | 5. OCR | `ocr_processor.py` | `OCRProcessor` extracts text from `.jpg` images. Runnable standalone: `python ocr_processor.py`. Outside `main.py`: the pipeline emits text and PNG pages, and OCR is applied inside stage 4 to PDF pages whose text layer is empty. |
-| 6. Figure extraction | `figure_extractor.py` | `FigureExtractor` crops figure-sized regions of each page image to `<document>-fig-NNN.png` and records their caption candidates in `figures.json`. Runnable standalone: `python figure_extractor.py`. See the figure contract below. |
-| 7. Language analysis | `language_analyzer.py` | `LanguageAnalyzer` writes `language_analysis.json` and `SUMMARY.md` for the converted text. Runnable standalone: `python language_analyzer.py`. See the statistics contract below. |
+| 6. Figure extraction | `figure_extractor.py` | Active conversion inputs produce immutable crop/metadata generations selected by `active.json`; legacy `figures.json` remains history. |
+| 7. Language analysis | `language_analyzer.py` | Active qualified conversion text produces deterministic `language_analysis.json` and `SUMMARY.md`. |
 
 ## Live run (2026-11-02)
 
@@ -90,72 +88,27 @@ Decisions this contract fixes:
   the document the second seed links.
 - The crawl is breadth-first from each seed: a seed's own pages are visited in
   the order their links appear, one page per turn.
-- A configured seed is always fetched. The utility rules apply to discovered
-  links, and a document link is both recorded and kept out of the crawl queue.
-- A page that fails to load is reported and the crawl continues with the
-  remaining pages of every seed's queue.
+- Seeds, discovered links, and each redirect require admitted HTTP(S) hostname/port boundaries before the next request.
+- Failed/invalid seeds and budget truncation remain explicit in `CrawlResult`; successful peers do not erase incomplete status. Successful-empty discovery is distinct from failure. CLI/pipeline incomplete outcomes are nonzero.
 - Dropping a fragment removes no content: a browser never sends one, so the
   server returns the same page; the change only stops the same page being
   counted twice against the budget.
 
 ## Download contract (stage 2)
 
-`DocumentDownloader` downloads every discovered URL concurrently into the
-download directory. It returns the file name it wrote (or found already
-there), so the archive step records the file that is actually on disk:
+Completed downloads return `DownloadReceipt` values binding source/final URLs, file bytes, and original acquisition time. Same-volume staging and no-clobber publication prevent partial or competing bytes from becoming accepted cache entries. File existence without matching receipt/content is not completion.
 
-| Case | File name |
-| --- | --- |
-| The URL path's last segment carries a document extension | that segment (`a.pdf`) |
-| The URL path carries none (`…/article/download/1766/611/7584`) | the segment plus the extension the response `Content-Type` implies (`7584.pdf`) |
-| No extension and an unconverted content type | the segment unchanged (`7584`); stage 4 then reports it as unsupported |
-
-Decisions this contract fixes:
-
-- The name is the last segment of the URL *path*: a query string or fragment
-  cannot leak into it, so `…/a.pdf?download=1#page=2` is saved as `a.pdf`, and
-  a percent-encoded name is decoded.
-- A URL that ends in a slash falls back to `document`.
-- A file that already exists is not downloaded again, and its name is returned.
-- The content-type mapping covers only the formats the later stages convert —
-  `application/pdf` and the three Open XML types. An unknown type is not
-  guessed, so an unconverted file keeps its extension-less name and stage 4
-  reports it, which is visible rather than silent.
-- The rule comes from the first live run: the OJS galley URL above was saved as
-  `7584` and then skipped by stage 4's extension filter.
+Content-type extension rules remain. Metadata consumes qualified receipt batches, validates the whole batch before one atomic publication, and avoids duplicate cached acquisitions. No current receipt is retrofitted onto ambiguous legacy bytes.
 
 ## Conversion contract (stage 4)
 
-Every converted document produces two uniform artifacts under the converted
-directory, so later stages read one shape:
+Conversion outputs live in immutable `.generations/<id>/` sets. Each retained `record.json` binds source and generated text/page bytes; `active.json` atomically selects successful qualified sets.
 
-| Artifact | Content |
-| --- | --- |
-| `text/<name>.txt` | The document text: PDF text layer page by page, a form feed (`\f`) between pages, or the extracted paragraphs/slide text/worksheet rows of a `.docx`, `.pptx` or `.xlsx` file. |
-| `pages/<name>/page-NNNN.png` | One PNG per PDF page at 150 DPI, numbered from 1 and zero-padded to four digits. |
-
-Decisions this contract fixes:
-
-- A PDF page whose text layer is empty (an image-only scan) is rendered and
-  read with Tesseract, so the text artifact is complete for scanned documents;
-  the OCR stage's system requirement applies here too.
-- The text artifact is written for every page, not only for image-only pages.
-- Office documents produce the text artifact only: paginating and rasterizing
-  them needs an external office suite, which this stage does not depend on.
-- Conversion is deterministic: documents are converted in sorted name order,
-  artifacts overwrite earlier runs, and two documents that share a base name
-  with different extensions are written as `<base>.txt` and
-  `<base>-<extension>.txt` rather than overwriting each other.
-- A document that cannot be read is reported and skipped; the remaining
-  documents are still converted.
+PDF text retains page boundaries and 150-DPI page images; image-only pages require Tesseract. Office documents retain text-only conversion. Logical names avoid same-basename collisions. A failed or shrinking replacement cannot expose stale pages/text; all consumers exclude retired, failed, stale, corrupt, or unqualified generations without deleting old history or unowned files.
 
 ## Figure contract (stage 6)
 
-`FigureExtractor` reads the page images stage 4 wrote and, per document in
-sorted order and per page in page order, writes each figure as
-`<document>-fig-NNN.png` (three digits from `fig-001`, numbering continuing
-across the pages of one document) into the figure output directory, plus a
-`figures.json` metadata file:
+`FigureExtractor` reads only active qualified conversion sets, in deterministic document/page order. Crops and metadata are published in immutable generations with source/output hashes and retained `record.json`; `active.json` selects current figure sets. Legacy flat crops and `figures.json` remain untouched historical files, not current discovery inputs. Figure metadata retains:
 
 | Field | Content |
 | --- | --- |
@@ -204,8 +157,7 @@ Decisions this contract fixes:
 
 ## Statistics contract (stage 7)
 
-`LanguageAnalyzer` reads every `.txt` file in its input directory — the
-`text/` directory written by stage 4 — and writes two artifacts:
+`LanguageAnalyzer` takes the converted root and reads only text in qualified active generations, then writes two artifacts:
 
 | Artifact | Content |
 | --- | --- |
@@ -220,8 +172,8 @@ Decisions this contract fixes:
   `Proceedings`, `proceedings,` and `proceedings.` all count as
   `proceedings`, and `don't` stays one word.
 - A sentence ends at `.`, `!` or `?`; empty segments do not count.
-- Documents are read in sorted name order and artifacts overwrite earlier
-  runs, so the output is deterministic.
+- Counters and running weighted totals replace corpus-sized token/sentence lists. The existing lowercased ASCII/apostrophe rule applies consistently: `ISSS AI.` has two words. JSON and Markdown totals agree; historical live-run results above are not recalculated.
+- Documents retain deterministic order; inactive and stale text cannot re-enter analysis by remaining on disk.
 
 ## Pipeline classes
 
@@ -229,12 +181,9 @@ Decisions this contract fixes:
 | --- | --- | --- | --- |
 | `file_converter.py` | `FileConverter` | `FileConverter(download_path, converted_path)` | `convert_files()` |
 | `figure_extractor.py` | `FigureExtractor` | `FigureExtractor(converted_path, figure_output_path)` | `extract_figures()` |
-| `language_analyzer.py` | `LanguageAnalyzer` | `LanguageAnalyzer(text_path, output_path)` | `analyze_language()` |
+| `language_analyzer.py` | `LanguageAnalyzer` | `LanguageAnalyzer(converted_path, output_path)` | `analyze_language()` |
 
-The two constructors that the original wiring documented as
-`ocr_output_path`/`converted_path` placeholders were settled when the stages
-were implemented: stage 6 reads the page images of the converted tree, and
-stage 7 reads its `text/` directory, because OCR stays a standalone stage.
+Stage 6 and stage 7 consume the conversion root's active-generation contract. Standalone OCR remains separate; no flat-file compatibility scan or parallel artifact format is introduced.
 
 To change a stage: keep its class and method names, keep the artifacts in the
 contract above (or update the contract and the dependent stages together), add

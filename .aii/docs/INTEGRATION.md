@@ -31,7 +31,7 @@
 | Repository | Relation | Note |
 | --- | --- | --- |
 | `ActiveInferenceInstitute/InstituteOS` | `referenced-by` | Federated via the InstituteOS .aii manifest. |
-| `ActiveInferenceInstitute/Active_Inference_Ontology` | `references` | Uses Active Inference Ontology terms. |
+| `ActiveInferenceInstitute/Active_Inference_Ontology` | `references` | Vocabulary reference only; no runtime term mapping or consumption is implemented. |
 
 ## Key artifacts
 

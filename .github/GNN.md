@@ -13,7 +13,10 @@ it parses the pinned upstream `input/gnn_files/basics/static_perception.md`
 exemplar; this is a pipeline and pin conformance baseline, not a claim that the
 repository already contains a model.
 
-The type check must return exactly `True`; `2` (invalid files or none found) and
-`False` fail the job. The printed receipt's `result` is
+The adapter requires complete, uniquely identified per-file validity evidence with
+no errors. An aggregate `True` or integer `2` cannot admit an absent, empty,
+malformed, or contradictory report; `False` and unsupported sentinels fail.
+Integer `2` is admitted only with a complete valid warning-only report.
+The printed receipt's `result` is
 `repository-content-passed` when repository sketches were checked and
 `pinned-exemplar-baseline-passed` when only the pinned exemplar was.

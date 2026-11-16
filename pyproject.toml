@@ -39,6 +39,7 @@ py-modules = [
     "file_converter",
     "figure_extractor",
     "language_analyzer",
+    "pipeline_artifacts",
 ]
 
 [tool.pytest.ini_options]
@@ -56,6 +57,7 @@ source = [
     "ocr_processor",
     "language_analyzer",
     "main",
+    "pipeline_artifacts",
 ]
 
 [tool.coverage.report]

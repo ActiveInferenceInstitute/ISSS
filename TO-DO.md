@@ -256,11 +256,12 @@ therefore one script that CI also calls.
       sidecar against the tree; the docs are complete and modular. Registered
       the readiness gaps above and bumped `readiness.json`'s
       `standard_version` to the current catalogue `1.1.0`.
-- [ ] `.aii/docs/INTEGRATION.md` and `.aii/README.md` are presented as rendered
-      from `.aii/config.yaml` by `aii_platform.aii_sidecar docs --overwrite`.
-      The private environment is reachable now, but its `aii-platform` 0.3.2
-      exposes only `validate`, `scan`, `run`, `init`, `rollout`, `curate`,
-      `doctor` and `schema` — there is no `docs` subcommand — so the two files
-      stay hand-maintained. `python -m aii_platform.aii_sidecar validate <tree>`
-      passes on `main` at `066b561`; the renderer itself is owned by
-      InstituteOS, not by this repository.
+- [x] Regenerate all five `.aii/` document projections with the selected authoritative `aii_platform.aii_sidecar` renderer, then validate completeness and task parity. Governed qualification checked exact source/projection parity, second-render byte stability, and the real seven-task listing. Never hand-sync generated documents. Renderer qualification is separate from metadata/source tests.
+
+## 2026-11-13 bounded qualification
+
+I1–I4, I5 verdict/report admission, I7 reference-link behavior, metadata batching, figure search/cropping, mutable-list deduplication, and offline-refresh regression contracts passed governed offline acceptance. I5 also consumed a complete fresh real upstream type-check report under the frozen package/import lifetime guard: explicit source mode and the supplied ISSS runtime's installed v5.0.3 package passed separately. Installed proof binds both real PEP 610 origin and the full independently trusted package inventory, not version metadata alone. This is not the whole network/provisioning GNN arm or scientific-model qualification. Live sites, real OCR accuracy, scientific heuristics, hosted readiness, and speedups remain unqualified.
+
+I6's canonical metadata correction and all five canonical renderer projections are qualified, including completeness, byte parity, stability, and unchanged seven-task command mapping. Current generated timing/count publication remains the separate canonical measurement producer's responsibility. Keep joined-report, toolchain/readiness, and scientific decisions open. Historical completed steps, site observations, and prior measurements remain dated evidence, not new proof.
+
+The canonical measurement CLI supports explicit external `--output-dir` staging. Child docs checks receive the selection as `run.sh docs --output-dir PATH`, without an ambient environment selector; module paths are restored after each invocation. Focused gate-report regressions passed after the nested-capture isolation repair. Only an admitted real offline capture may supply new generated values; apply its exact producer bytes separately. No bound, GNN acquisition policy, scientific threshold, or coverage floor was weakened.

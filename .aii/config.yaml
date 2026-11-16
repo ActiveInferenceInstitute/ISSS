@@ -1,7 +1,7 @@
 # AII sidecar — InstituteOS metadata. Schema: aii_platform.aii_sidecar
 meta:
   sidecar_version: 1.2.1
-  updated: '2026-11-12'
+  updated: '2026-11-13'
 repo:
   name: ISSS
   slug: isss
@@ -18,7 +18,7 @@ ecosystem:
     relation: referenced-by
     note: Federated via the InstituteOS .aii manifest.
   - repo: ActiveInferenceInstitute/Active_Inference_Ontology
-    note: Uses Active Inference Ontology terms.
+    note: Vocabulary reference only; no runtime term mapping or consumption is implemented.
   links:
     github: https://github.com/ActiveInferenceInstitute/ISSS
     website: https://www.activeinference.org
@@ -103,7 +103,5 @@ docs:
 - AGENTS.md
 - docs/INTEGRATION.md
 - docs/README.md
-- ../docs/documentation-index.md
-- ../docs/workflows/publishing.md
 - docs/AGENTS.md
 schema: aii-sidecar/v1

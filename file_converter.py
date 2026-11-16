@@ -1,17 +1,9 @@
 """File conversion pipeline stage: documents converted to text and page images.
 
-Stage 4 of the pipeline. ``FileConverter`` reads every supported document in
-``download_path`` (the stage-2 download directory) and writes two uniform
-artifacts per document under ``converted_path``:
-
-- ``text/<name>.txt`` — the document's text. For PDFs this is the embedded
-  text layer, page by page in page order, with a form feed (``\\f``) between
-  pages; a page whose text layer is empty (an image-only scan) is rendered and
-  read with Tesseract instead, so the text artifact is complete for scanned
-  documents too.
-- ``pages/<name>/page-NNNN.png`` — one PNG per PDF page, rendered at 150 DPI,
-  numbered from 1 and zero-padded to four digits, so later stages address
-  pages deterministically.
+Stage 4 converts explicitly selected inputs into immutable generations. ``active.json``
+is the only discovery contract: each successful record names its source hash,
+text file and ordered page files below ``.generations/<id>/``. Legacy flat output,
+retired generations and incomplete staging sets are never active by directory scan.
 
 Artifact rules, applied uniformly so every downstream stage reads one shape:
 
@@ -20,13 +12,14 @@ Artifact rules, applied uniformly so every downstream stage reads one shape:
   needs an external office suite, which this stage does not depend on.
 - The text artifact is written for every page, not only for image-only pages.
 - OCR needs the system Tesseract binary, exactly as in stage 5.
-- Re-running overwrites the artifacts, and a document that cannot be read is
-  reported and skipped without stopping the run.
+- Re-running atomically selects complete new sets without deleting historical
+  bytes. Failed documents are explicitly excluded from the active manifest.
 
 Runnable standalone: ``python file_converter.py``.
 """
 
 import os
+from pathlib import Path
 
 import openpyxl
 import pymupdf
@@ -34,6 +27,8 @@ import pytesseract
 from docx import Document as DocxDocument
 from PIL import Image
 from pptx import Presentation
+
+from pipeline_artifacts import ArtifactStore, file_identity
 
 #: Document types downloaded by stage 2 and converted here.
 DOCUMENT_EXTENSIONS = ('.pdf', '.docx', '.pptx', '.xlsx')
@@ -47,104 +42,106 @@ class FileConverter:
     """Converts downloaded documents into text files and page images."""
 
     def __init__(self, download_path, converted_path):
-        """Initializes the FileConverter with input and output paths.
+        self.download_path = Path(download_path).absolute()
+        self.converted_path = Path(converted_path)
+        self.store = ArtifactStore(converted_path, 'conversion')
+        self._text_names = {
+            Path(record['text_file']).name: name
+            for name, record in self.store.documents.items()
+        }
 
-        Args:
-            download_path (str): Directory holding the downloaded documents.
-            converted_path (str): Directory where the converted artifacts are
-                written, as ``text/`` and ``pages/`` subdirectories.
-        """
-        self.download_path = download_path
-        self.converted_path = converted_path
-        self.text_path = os.path.join(converted_path, 'text')
-        self.pages_path = os.path.join(converted_path, 'pages')
-        os.makedirs(self.text_path, exist_ok=True)
-        os.makedirs(self.pages_path, exist_ok=True)
-        self._text_names = {}
-
-    def convert_files(self):
-        """Converts every supported document in the download directory.
-
-        Returns:
-            list[dict]: One record per converted document, with the document
-            name, its page-image count and the length of the extracted text.
-            Documents that could not be read are left out.
-        """
+    def convert_files(self, document_paths=None):
+        """Activate only this invocation's successful, explicitly selected inputs."""
+        paths = (
+            list(self.download_path.iterdir()) if document_paths is None
+            else [Path(path).absolute() for path in document_paths]
+        )
+        paths = sorted(
+            (path for path in paths if path.suffix.lower() in DOCUMENT_EXTENSIONS),
+            key=lambda path: path.name,
+        )
+        names = [path.name for path in paths]
+        if len(names) != len(set(names)):
+            raise ValueError('duplicate source filenames in conversion selection')
+        self.store.select(names)
+        self._text_names = {
+            text_name: name for text_name, name in self._text_names.items() if name in names
+        }
         converted = []
-        for filename in sorted(os.listdir(self.download_path)):
-            if not filename.lower().endswith(DOCUMENT_EXTENSIONS):
-                continue
-            document_path = os.path.join(self.download_path, filename)
-            record = self.convert_document(document_path)
+        for path in paths:
+            record = self._convert_document(path)
             if record is not None:
                 converted.append(record)
+        self.store.commit()
         print(f'Converted {len(converted)} document(s) from {self.download_path}.')
         return converted
 
     def convert_document(self, document_path):
-        """Converts one document and writes its text file and page images.
+        """Publish one complete document or deactivate its failed replacement."""
+        record = self._convert_document(Path(document_path).absolute())
+        self.store.commit()
+        return record
 
-        Args:
-            document_path (str): Path of the document to convert.
-
-        Returns:
-            dict | None: The conversion record for the document, or ``None``
-            when it could not be read; the failure is reported and the
-            remaining documents are still converted.
-        """
-        name = os.path.basename(document_path)
+    def _convert_document(self, path):
+        name = path.name
         try:
-            if name.lower().endswith('.pdf'):
-                text, page_count = self._convert_pdf(document_path)
-            else:
-                text, page_count = self._convert_office(document_path), 0
-        except Exception as error:  # one unreadable document must not stop the run
+            if path.parent.resolve() != self.download_path.resolve():
+                raise ValueError('source is outside the selected download directory')
+            source_identity = file_identity(path)
+            text_name = self._register_text_name(name)
+            with self.store.stage() as (generation, staged):
+                pages = staged / 'pages'
+                pages.mkdir()
+                if path.suffix.lower() == '.pdf':
+                    text, page_count = self._convert_pdf(path, pages)
+                else:
+                    text, page_count = self._convert_office(str(path)), 0
+                text_directory = staged / 'text'
+                text_directory.mkdir()
+                (text_directory / text_name).write_text(text, encoding='utf-8')
+                if file_identity(path) != source_identity:
+                    raise ValueError('source changed during conversion')
+                prefix = f'.generations/{generation}/'
+                record = self.store.publish(staged, {
+                    'document_name': name,
+                    'generation': generation,
+                    'source': {'path': str(path), **source_identity},
+                    'text_file': prefix + 'text/' + text_name,
+                    'page_files': [
+                        prefix + f'pages/page-{number:04d}.png'
+                        for number in range(1, page_count + 1)
+                    ],
+                    'page_count': page_count,
+                    'characters': len(text),
+                })
+            print(f'Converted {name} to {text_name} ({page_count} page image(s)).')
+            return record
+        except Exception as error:  # Per-document errors preserve successful peers.
+            self.store.fail(name, error)
             print(f'Skipped {name}: {error}')
             return None
-        text_name = self._register_text_name(name)
-        with open(os.path.join(self.text_path, text_name), 'w', encoding='utf-8') as text_file:
-            text_file.write(text)
-        print(f'Converted {name} to {text_name} ({page_count} page image(s)).')
-        return {'document_name': name, 'page_count': page_count, 'characters': len(text)}
 
     def _register_text_name(self, name):
-        """Returns the text file name for a document, disambiguating collisions.
-
-        Two documents can share a base name with different extensions
-        (``programme.pdf`` and ``programme.docx``). The first in the sorted
-        conversion order keeps ``<base>.txt``; a later one is written as
-        ``<base>-<extension>.txt`` instead of overwriting it.
-
-        Args:
-            name (str): File name of the converted document.
-
-        Returns:
-            str: File name of its text artifact.
-        """
+        prior = self.store.documents.get(name)
+        if prior is not None:
+            return Path(prior['text_file']).name
         base, extension = os.path.splitext(name)
-        text_name = f'{base}.txt'
-        if self._text_names.get(text_name) not in (None, name):
-            text_name = f'{base}-{extension.lstrip(".").lower()}.txt'
-        self._text_names[text_name] = name
-        return text_name
+        candidate = f'{base}.txt'
+        fallback = f'{base}-{extension.lstrip(".").lower()}'
+        number = 1
+        while self._text_names.get(candidate) not in (None, name):
+            candidate = f'{fallback}{"" if number == 1 else f"-{number}"}.txt'
+            number += 1
+        self._text_names[candidate] = name
+        return candidate
 
-    def _convert_pdf(self, document_path):
-        """Extracts the text of every page and renders one PNG per page.
-
-        Args:
-            document_path (str): Path of the PDF document.
-
-        Returns:
-            tuple[str, int]: The document text and its page-image count.
-        """
-        base = os.path.splitext(os.path.basename(document_path))[0]
-        pages_path = os.path.join(self.pages_path, base)
-        os.makedirs(pages_path, exist_ok=True)
+    def _convert_pdf(self, document_path, pages_path):
+        """Render only into a private generation until every page and OCR succeeds."""
         page_texts = []
         with pymupdf.open(document_path) as document:
             for page_number, page in enumerate(document, start=1):
                 pixmap = page.get_pixmap(dpi=PDF_DPI)
-                pixmap.save(os.path.join(pages_path, f'page-{page_number:04d}.png'))
+                pixmap.save(str(pages_path / f'page-{page_number:04d}.png'))
                 page_text = page.get_text().strip()
                 if not page_text:
                     page_text = self._ocr_page(self._page_image(pixmap))
@@ -234,3 +231,4 @@ class FileConverter:
 if __name__ == '__main__':
     file_converter = FileConverter('downloaded_documents', 'converted_documents')
     file_converter.convert_files()
+    raise SystemExit(1 if file_converter.store.failures else 0)

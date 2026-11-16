@@ -1,9 +1,8 @@
 """Figure extraction pipeline stage: figures and caption candidates from pages.
 
-Stage 6 of the pipeline. ``FigureExtractor`` reads the page images written by
-stage 4 (``pages/<document>/page-NNNN.png``) and, for every page, writes each
-detected figure as a PNG named ``<document>-fig-NNN.png`` into the figure
-output directory, together with a ``figures.json`` metadata file.
+Stage 6 reads only stage 4's qualified active generation manifest. Crops are
+published as immutable document sets and selected by the figure directory's own
+``active.json``. Legacy crops and ``figures.json`` remain historical, never inputs.
 
 Detection runs on the rendered page, so it needs no source-document layout:
 
@@ -36,19 +35,21 @@ Each figure keeps its caption candidate:
   ``caption_candidate: null``, so an ambiguous case stays visible instead of
   being dropped.
 
-Naming, ordering and re-runs are deterministic: documents and pages are
-processed in sorted name and page order, figure numbers are three digits
-starting at ``fig-001`` and continue across the pages of one document, and
-artifacts overwrite earlier runs.
+Documents and declared pages retain deterministic reading order. Figure numbers
+start at ``fig-001`` per document. Failed or retired sets are excluded atomically;
+historical generations and unowned files are never overwritten or removed.
 
 Runnable standalone: ``python figure_extractor.py``.
 """
 
-import json
 import os
+from collections import defaultdict
+from pathlib import Path
 
 import pytesseract
 from PIL import Image
+
+from pipeline_artifacts import ArtifactStore, file_identity
 
 #: A pixel counts as ink when its grayscale value is below this threshold.
 INK_THRESHOLD = 200
@@ -63,42 +64,28 @@ MAX_FIGURE_AREA_RATIO = 0.80
 TEXT_COVERAGE_LIMIT = 0.15
 #: Largest distance between a figure box and its caption candidate, in pixels.
 CAPTION_MAX_GAP = 120
-#: Metadata file name and the page-image directory name written by stage 4.
-REPORT_NAME = 'figures.json'
-PAGES_DIRECTORY = 'pages'
+#: The same active-generation contract as stage 4; legacy reports remain untouched.
+REPORT_NAME = 'active.json'
 
 
 class FigureExtractor:
     """Extracts the figures and caption candidates of converted page images."""
 
     def __init__(self, converted_path, figure_output_path):
-        """Initializes the FigureExtractor with input and output paths.
-
-        Args:
-            converted_path (str): Directory written by stage 4, holding
-                ``pages/<document>/page-NNNN.png``.
-            figure_output_path (str): Directory where the figure images and
-                ``figures.json`` are written.
-        """
-        self.converted_path = converted_path
-        self.figure_output_path = figure_output_path
-        self.pages_path = os.path.join(converted_path, PAGES_DIRECTORY)
-        os.makedirs(figure_output_path, exist_ok=True)
+        self.converted_path = Path(converted_path)
+        self.figure_output_path = Path(figure_output_path)
+        self.store = ArtifactStore(figure_output_path, 'figures')
+        self.figure_output_path.mkdir(parents=True, exist_ok=True)
 
     def extract_figures(self):
-        """Extracts the figures of every converted document's page images.
-
-        Returns:
-            dict: The report that was written: one entry per document with its
-            figures and the count of page-sized regions that were skipped.
-        """
-        documents = [self.extract_document(name) for name in sorted(self._document_names())]
-        report = {
-            'document_count': len(documents),
-            'figure_count': sum(len(document['figures']) for document in documents),
-            'documents': documents,
-        }
-        self._write_report(report)
+        """Atomically select only successful figures of current conversion sets."""
+        producer = ArtifactStore(self.converted_path, 'conversion')
+        documents = [record for record in producer.active_documents() if record['page_files']]
+        self.store.select(record['document_name'] for record in documents)
+        self.store.failures.update(producer.failures)
+        for document in documents:
+            self._extract_document(document, producer)
+        report = self.store.commit()
         print(
             f'Extracted {report["figure_count"]} figure(s) from '
             f'{report["document_count"]} document(s) into {self.figure_output_path}.'
@@ -106,53 +93,64 @@ class FigureExtractor:
         return report
 
     def extract_document(self, document_name):
-        """Extracts the figures of one document's page images.
+        """Replace one selected source document; names include their source extension."""
+        producer = ArtifactStore(self.converted_path, 'conversion')
+        records = {record['document_name']: record for record in producer.active_documents()}
+        if document_name not in records:
+            raise ValueError(f'no qualified conversion for {document_name}')
+        result = self._extract_document(records[document_name], producer)
+        self.store.commit()
+        return result
 
-        Args:
-            document_name (str): Name of the document as stage 4 writes it, that
-                is the file name without its extension (``proceedings`` for
-                ``proceedings.pdf``).
+    def _extract_document(self, document, producer):
+        name = document['document_name']
+        try:
+            figures = []
+            skipped_page_sized = skipped_text = 0
+            artifact_name = Path(document['text_file']).stem
+            with self.store.stage() as (generation, staged):
+                for relative in document['page_files']:
+                    page = producer.resolve(document, relative)
+                    page_figures, skipped = self.extract_page(
+                        page, artifact_name, _page_number(page.name), len(figures) + 1,
+                        output_path=staged,
+                    )
+                    figures.extend(page_figures)
+                    skipped_page_sized += skipped['page_sized_regions']
+                    skipped_text += skipped['text_regions']
+                source = document['source']
+                if file_identity(source['path']) != {
+                    'sha256': source['sha256'], 'size': source['size']
+                }:
+                    raise ValueError('source changed during figure extraction')
+                current = ArtifactStore(self.converted_path, 'conversion')
+                if current.documents.get(name, {}).get('generation') != document['generation']:
+                    raise ValueError('conversion changed during figure extraction')
+                for figure in figures:
+                    figure['figure'] = f'.generations/{generation}/' + figure['figure']
+                return self.store.publish(staged, {
+                    'document_name': name,
+                    'generation': generation,
+                    'source': dict(source),
+                    'upstream': {
+                        'manifest': str(producer.manifest_path.absolute()),
+                        'generation': document['generation'],
+                    },
+                    'figures': figures,
+                    'skipped_page_sized_regions': skipped_page_sized,
+                    'skipped_text_regions': skipped_text,
+                })
+        except Exception as error:
+            self.store.fail(name, error)
+            print(f'Skipped figures for {name}: {error}')
+            return None
 
-        Returns:
-            dict: The document entry, with one record per extracted figure.
-        """
-        pages_directory = os.path.join(self.pages_path, document_name)
-        figures = []
-        skipped_page_sized = 0
-        skipped_text = 0
-        for page_name in sorted(os.listdir(pages_directory)):
-            if not page_name.lower().endswith('.png'):
-                continue
-            page_figures, skipped = self.extract_page(
-                os.path.join(pages_directory, page_name),
-                document_name,
-                _page_number(page_name),
-                len(figures) + 1,
-            )
-            figures.extend(page_figures)
-            skipped_page_sized += skipped['page_sized_regions']
-            skipped_text += skipped['text_regions']
-        return {
-            'document_name': document_name,
-            'figures': figures,
-            'skipped_page_sized_regions': skipped_page_sized,
-            'skipped_text_regions': skipped_text,
-        }
-
-    def extract_page(self, page_path, document_name, page_number, first_figure_number=1):
-        """Extracts the figures of one page image.
-
-        Args:
-            page_path (str): Path of the page PNG.
-            document_name (str): Name of the document the page belongs to.
-            page_number (int): Page number, taken from the file name.
-            first_figure_number (int): Figure number of the first figure found
-                on this page, so numbering continues across a document.
-
-        Returns:
-            tuple[list[dict], dict]: The figure records with their file names,
-            and the number of page-sized and text regions that were skipped.
-        """
+    def extract_page(
+        self, page_path, document_name, page_number, first_figure_number=1, *, output_path
+    ):
+        """Write candidate crops only into the caller's explicit private staging path."""
+        output_path = Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
         with Image.open(page_path) as page_image:
             page = page_image.convert('L')
             boxes = _merge_nearby_boxes(_component_boxes(page.tobytes(), *page.size))
@@ -173,9 +171,7 @@ class FigureExtractor:
         records = []
         for index, box in enumerate(figure_boxes):
             figure_name = f'{document_name}-fig-{first_figure_number + index:03d}.png'
-            page.convert('RGB').crop(box).save(
-                os.path.join(self.figure_output_path, figure_name)
-            )
+            page.crop(box).convert('RGB').save(output_path / figure_name)
             caption = self._caption_candidate(box, caption_blocks)
             records.append(
                 {
@@ -190,15 +186,6 @@ class FigureExtractor:
             )
         return records, {'page_sized_regions': skipped_page_sized, 'text_regions': skipped_text}
 
-    def _document_names(self):
-        """Returns the document directories written by stage 4."""
-        if not os.path.isdir(self.pages_path):
-            return []
-        return [
-            name
-            for name in os.listdir(self.pages_path)
-            if os.path.isdir(os.path.join(self.pages_path, name))
-        ]
 
     @staticmethod
     def _caption_candidate(figure_box, caption_blocks):
@@ -235,11 +222,6 @@ class FigureExtractor:
                 best = candidate
         return best[2] if best else None
 
-    def _write_report(self, report):
-        """Writes the figure metadata file."""
-        report_path = os.path.join(self.figure_output_path, REPORT_NAME)
-        with open(report_path, 'w', encoding='utf-8') as report_file:
-            json.dump(report, report_file, indent=2, ensure_ascii=False)
 
 
 def _ocr_page(page):
@@ -424,25 +406,71 @@ def _component_boxes(pixels, width, height):
 
 
 def _merge_nearby_boxes(boxes):
-    """Merges component boxes whose edges are within the merge distance."""
-    merged = [list(box) for box in sorted(boxes, key=lambda box: (box[1], box[0]))]
-    changed = True
-    while changed:
+    """Prune distant pairs while preserving the original first-pair restart order."""
+    ordered = sorted(boxes, key=lambda box: (box[1], box[0]))
+    active = {index: list(box) for index, box in enumerate(ordered)}
+    cells = defaultdict(set)
+    memberships = {}
+    large = set()
+    cell_size = max(1, 2 * MERGE_DISTANCE + 1)
+
+    def keys(box, grow=0):
+        left, top, right, bottom = box
+        x1, x2 = (left - grow) // cell_size, (right + grow) // cell_size
+        y1, y2 = (top - grow) // cell_size, (bottom + grow) // cell_size
+        # Large boxes use a side set: never allocate a grid proportional to
+        # arbitrary coordinate magnitudes. This changes candidates, not science.
+        if (x2 - x1 + 1) * (y2 - y1 + 1) > max(1, len(ordered)):
+            return None
+        return [(x, y) for x in range(x1, x2 + 1) for y in range(y1, y2 + 1)]
+
+    def add(index):
+        membership = keys(active[index])
+        memberships[index] = membership
+        if membership is None:
+            large.add(index)
+        else:
+            for key in membership:
+                cells[key].add(index)
+
+    def remove(index):
+        membership = memberships.pop(index)
+        if membership is None:
+            large.remove(index)
+        else:
+            for key in membership:
+                cells[key].remove(index)
+                if not cells[key]:
+                    del cells[key]
+
+    for index in active:
+        add(index)
+    while True:
         changed = False
-        for index, box in enumerate(merged):
-            for other_index in range(index + 1, len(merged)):
-                other = merged[other_index]
-                if _boxes_are_near(box, other):
-                    box[0] = min(box[0], other[0])
-                    box[1] = min(box[1], other[1])
-                    box[2] = max(box[2], other[2])
-                    box[3] = max(box[3], other[3])
-                    del merged[other_index]
-                    changed = True
-                    break
+        for index, box in active.items():
+            nearby = keys(box, MERGE_DISTANCE)
+            candidates = set(active) if nearby is None else set(large)
+            if nearby is not None:
+                for key in nearby:
+                    candidates.update(cells.get(key, ()))
+            for other_index in sorted(candidate for candidate in candidates if candidate > index):
+                other = active[other_index]
+                if not _boxes_are_near(box, other):
+                    continue
+                remove(index)
+                remove(other_index)
+                box[:] = [
+                    min(box[0], other[0]), min(box[1], other[1]),
+                    max(box[2], other[2]), max(box[3], other[3]),
+                ]
+                del active[other_index]
+                add(index)
+                changed = True
+                break
             if changed:
                 break
-    return [tuple(box) for box in merged]
+        if not changed:
+            return [tuple(box) for box in active.values()]
 
 
 def _boxes_are_near(first, second):
@@ -473,4 +501,5 @@ def _page_number(page_name):
 
 if __name__ == '__main__':
     figure_extractor = FigureExtractor('converted_documents', 'extracted_figures')
-    figure_extractor.extract_figures()
+    report = figure_extractor.extract_figures()
+    raise SystemExit(1 if report['failures'] else 0)

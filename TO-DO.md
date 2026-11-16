@@ -265,3 +265,18 @@ I1–I4, I5 verdict/report admission, I7 reference-link behavior, metadata batch
 I6's canonical metadata correction and all five canonical renderer projections are qualified, including completeness, byte parity, stability, and unchanged seven-task command mapping. Current generated timing/count publication remains the separate canonical measurement producer's responsibility. Keep joined-report, toolchain/readiness, and scientific decisions open. Historical completed steps, site observations, and prior measurements remain dated evidence, not new proof.
 
 The canonical measurement CLI supports explicit external `--output-dir` staging. Child docs checks receive the selection as `run.sh docs --output-dir PATH`, without an ambient environment selector; module paths are restored after each invocation. Focused gate-report regressions passed after the nested-capture isolation repair. Only an admitted real offline capture may supply new generated values; apply its exact producer bytes separately. No bound, GNN acquisition policy, scientific threshold, or coverage floor was weakened.
+
+## 2026-11-16 software integration
+
+Independent source review identified and resolved stale active-selection reuse,
+loss of acquisition identities at the conversion boundary, and escaped closing
+backticks hiding real Markdown links. Their regression cases retain the
+current-main GNN sentinels and content/exemplar labels.
+
+The canonical offline measurement on the repaired source ran 320 tests with
+96.72% coverage on Python 3.12.16. Its generated record retains the original
+2026-11-13 and 2026-11-12 observations without redating them; the current
+network/provisioning GNN arm remains explicitly unmeasured. This source-level
+measurement is separate from the required exact-head local PR status and does
+not qualify live discovery, real OCR accuracy, scientific heuristics, hosted
+readiness, or speedups.

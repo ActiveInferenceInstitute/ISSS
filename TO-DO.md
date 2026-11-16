@@ -88,23 +88,21 @@ recorded, readiness re-measured, GNN pin and `pymdp` confirmed).
       run report that joins `metadata.json`, `figures.json` and
       `language_analysis.json` into one document record) — deferred: new
       functionality, not a documentation fix.
-- [ ] GNN pin is one release behind the estate cutover: `.github/gnn-pin.json`
-      records `v5.0.3` at `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`, while the
-      importer repositories moved to `v5.1.0` at
-      `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf` (tag list of
-      `ActiveInferenceInstitute/Generalized_Notation_Notation`, checked
-      2026-11-12). Bumping it is a pin change, not a documentation one: the
-      digest in `docs/workflows/publishing.md` (enforced by `./run.sh docs`),
-      the tag comment in `.github/workflows/ci.yml` and
-      `docs/_generated/gate-status.md` (via `./run.sh timings`) all have to
-      move with it. Blocked on the repository owner deciding whether ISSS, which
-      carries no `.gnn.md` model, follows the cutover.
-      The `inferactively-pymdp` 1.0.5 pin does not apply here: the tree
-      contains no reference to `pymdp` and the pipeline has no inference
-      dependency.
 
 ## Completed after the documentation pass
 
+- [x] GNN pin moved to the estate cutover release (2026-11-16):
+      `.github/gnn-pin.json` now records `v5.1.0` at
+      `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf` (the commit the annotated
+      `v5.1.0` tag resolves to), recorded 2026-11-16, previously `v5.0.3` at
+      `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`. The digest in
+      `docs/workflows/publishing.md`, the tag comment in
+      `.github/workflows/ci.yml`, `.github/GNN.md`, `docs/README.md` and
+      `docs/_generated/gate-status.md` (regenerated with
+      `./run.sh timings --offline`) moved with it.
+      The `inferactively-pymdp` 1.0.5 pin does not apply here: the tree
+      contains no reference to `pymdp` and the pipeline has no inference
+      dependency.
 - [x] Add automated tests and CI: `tests/` covers the four implemented stages
       and the `main.py` wiring offline (local fixture server, stubbed HTTP and
       OCR), with a 90% coverage floor; `.github/workflows/ci.yml` runs lint and

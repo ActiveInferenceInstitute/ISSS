@@ -6,18 +6,18 @@
 
 The gate has one entry point, `./run.sh`; CI calls the same arms.
 Measured rows in this record were observed on
-macOS-27.0.1-arm64-arm-64bit, CPython 3.12.16,
-18 CPUs on 2026-11-16.
+macOS-27.2.1-arm64-arm-64bit, CPython 3.12.16,
+14 CPUs on 2026-11-16.
 An offline refresh does not execute or qualify the GNN arm.
 
 ## Arms
 
 | Arm | Command | Before (s) | After (s) | Observation |
 | --- | --- | --- | --- | --- |
-| `lint` | `./run.sh lint` | 0.49 | 0.19 | measured |
-| `test` | `./run.sh test` | — (new) | 11.41 | measured |
-| `test-cov` | `./run.sh test-cov` | 10.21 | 15.83 | measured |
-| `docs` | `./run.sh docs` | — (new) | 1.62 | measured |
+| `lint` | `./run.sh lint` | 1.46 | 0.50 | measured |
+| `test` | `./run.sh test` | — (new) | 74.04 | measured |
+| `test-cov` | `./run.sh test-cov` | 171.19 | 67.10 | measured |
+| `docs` | `./run.sh docs` | — (new) | 3.83 | measured |
 | `gnn` | `./run.sh gnn` | — | unmeasured | offline; not executed |
 
 The old CI step is measured with the same interpreter that runs the arm
@@ -67,9 +67,9 @@ of it and only drops coverage instrumentation; `test-cov` adds the
 | Pin file | `.github/gnn-pin.json` |
 | Schema | `gnn-importer-pin/v1` |
 | Repository | `ActiveInferenceInstitute/Generalized_Notation_Notation` |
-| Tag | `v5.0.3` |
-| Revision | `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1` |
-| Recorded | 2026-11-12 |
+| Tag | `v5.1.0` |
+| Revision | `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf` |
+| Recorded | 2026-11-16 |
 
 `.github/gnn-pin.json` is the canonical pin; `.github/GNN.md` is the pointer that
 records what the job parses. The job installs the parser at the pinned

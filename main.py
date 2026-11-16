@@ -17,7 +17,6 @@ Configuration lives in the CONFIG block below; see docs/configuration.md.
 """
 
 import asyncio
-import os
 
 import aiohttp
 
@@ -52,50 +51,48 @@ OCR_OUTPUT_PATH = 'ocr_texts'
 
 
 async def _download(urls):
-    """Download every discovered document concurrently.
-
-    Returns the file names the documents were saved under, in URL order, so the
-    archive step records the files that were actually written rather than a name
-    derived again from the URL.
-    """
+    """Return qualified receipts and explicit per-URL failures, preserving peers."""
     downloader = DocumentDownloader(BASE_URL, DOWNLOAD_PATH)
     async with aiohttp.ClientSession() as session:
-        tasks = [downloader.save_document(session, url) for url in urls]
-        return await asyncio.gather(*tasks)
+        return await downloader.download_urls(session, urls)
 
 
 def main():
-    # Step 1: discover document URLs on the site
     scraper = WebScraper(BASE_URL, seed_urls=SEED_URLS, max_pages=MAX_PAGES)
-    scraper.start_crawling()
-    document_urls = scraper.get_document_urls()
-    print(f'Discovered {len(document_urls)} document(s).')
+    discovery = scraper.start_crawling()
+    print(f'Discovery {discovery.status}: {len(discovery.document_urls)} document(s).')
+    for failure in discovery.failures:
+        print(f'Discovery failure: {failure["url"]}: {failure["error"]}')
+    if discovery.status == 'failed':
+        print('Pipeline failed during discovery; existing outputs preserved.')
+        return 1
 
-    # Step 2: download all documents discovered
-    document_names = asyncio.run(_download(document_urls))
+    receipts, download_failures = asyncio.run(_download(discovery.document_urls))
+    for failure in download_failures:
+        print(f'Download failed: {failure["source_url"]}: {failure["error"]}')
+    MetadataArchiver(ARCHIVE_PATH).archive_receipts(receipts)
 
-    # Step 3: archive documents with metadata
-    archiver = MetadataArchiver(ARCHIVE_PATH)
-    for url, document_name in zip(document_urls, document_names):
-        document_path = os.path.join(DOWNLOAD_PATH, document_name)
-        archiver.archive_metadata(document_path, url, document_name.split('.')[-1])
-
-    # Step 4: convert the downloaded documents into text and page images
     converter = FileConverter(DOWNLOAD_PATH, CONVERTED_PATH)
-    converted = converter.convert_files()
+    converted = converter.convert_files(
+        (receipt.document_path for receipt in receipts),
+        expected_identities={
+            receipt.document_name: {'sha256': receipt.sha256, 'size': receipt.size}
+            for receipt in receipts
+        },
+    )
     print(f'Converted {len(converted)} document(s) into {CONVERTED_PATH}.')
+    figures = FigureExtractor(CONVERTED_PATH, FIGURE_OUTPUT_PATH).extract_figures()
+    language = LanguageAnalyzer(CONVERTED_PATH, LANGUAGE_ANALYSIS_OUTPUT_PATH).analyze_language()
 
-    # Step 6: extract the figures and their caption candidates from the pages
-    extractor = FigureExtractor(CONVERTED_PATH, FIGURE_OUTPUT_PATH)
-    extractor.extract_figures()
-
-    # Step 7: compile descriptive statistics over the converted text
-    analyzer = LanguageAnalyzer(os.path.join(CONVERTED_PATH, 'text'), LANGUAGE_ANALYSIS_OUTPUT_PATH)
-    analyzer.analyze_language()
-
-    print(f'Pipeline finished: results in {CONVERTED_PATH}, {FIGURE_OUTPUT_PATH} and '
+    incomplete = bool(
+        discovery.status == 'partial' or download_failures or converter.store.failures
+        or figures['failures'] or language['failures']
+    )
+    status = 'partial' if incomplete else discovery.status
+    print(f'Pipeline {status}: results in {CONVERTED_PATH}, {FIGURE_OUTPUT_PATH} and '
           f'{LANGUAGE_ANALYSIS_OUTPUT_PATH}.')
+    return 1 if incomplete else 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

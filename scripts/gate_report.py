@@ -7,8 +7,9 @@ by hand: ``./run.sh timings`` refreshes both, and ``--check`` (part of the
 ``docs`` arm) refuses a page that no longer matches the measurements or the
 live repository facts it cites.
 
-    python scripts/gate_report.py capture   # run every arm once, timed
-    python scripts/gate_report.py --check   # verify the committed page
+    python scripts/gate_report.py --capture           # full measurement, including GNN
+    python scripts/gate_report.py --capture --offline # no GNN acquisition or verification
+    python scripts/gate_report.py --check             # consistency, count and dispatch
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import math
 import os
 import platform
 import re
@@ -28,8 +30,9 @@ from pathlib import Path
 from gnn_conformance import EXEMPLAR_PATH, PIN_PATH, load_pin
 
 SCHEMA = "isss-gate-timings/v1"
-DATA_PATH = Path("docs/_generated/arm-timings.json")
-DOC_PATH = Path("docs/_generated/gate-status.md")
+DEFAULT_OUTPUT_DIR = Path("docs/_generated")
+DATA_PATH = DEFAULT_OUTPUT_DIR / "arm-timings.json"
+DOC_PATH = DEFAULT_OUTPUT_DIR / "gate-status.md"
 WORKFLOW_PATH = Path(".github/workflows/ci.yml")
 NOT_USED_COMPOSITE = (
     "ActiveInferenceInstitute/.github/.github/actions/"
@@ -49,7 +52,10 @@ ARMS: tuple[tuple[str, list[str] | None, str], ...] = (
 def timed(command: list[str]) -> tuple[float, str]:
     """Run one command, return its wall time and combined output."""
     started = time.perf_counter()
-    completed = subprocess.run(command, capture_output=True, text=True)
+    completed = subprocess.run(
+        command, capture_output=True, text=True,
+        env={**os.environ, "PYTHON": sys.executable},
+    )
     seconds = time.perf_counter() - started
     output = completed.stdout + completed.stderr
     if completed.returncode != 0:
@@ -117,9 +123,94 @@ def workflow_facts() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     return jobs, actions
 
 
-def capture() -> int:
-    """Run every arm once, timed, and write the data file and the page."""
-    data: dict[str, object] = {
+def _validate_data(data: dict) -> None:
+    """Accept legacy measurements and explicit offline states, never invented numbers."""
+    if not isinstance(data, dict) or data.get("schema") != SCHEMA:
+        raise SystemExit(f"invalid timing schema; expected {SCHEMA}")
+    try:
+        date.fromisoformat(data["recorded"])
+        if not all(isinstance(data["host"][key], str) and data["host"][key]
+                   for key in ("platform", "python", "cpus")):
+            raise ValueError("invalid host identity")
+        mode = data.get("capture_mode", "full")
+        if mode not in {"full", "offline"} or not isinstance(data["arms"], list):
+            raise ValueError("invalid capture mode or arms")
+        names = set()
+        for arm in data["arms"]:
+            name = arm["name"]
+            if name in names or name not in {item[0] for item in ARMS}:
+                raise ValueError("duplicate or unknown arm")
+            names.add(name)
+            status = arm.get("status", "measured")
+            if status == "unmeasured":
+                if (mode != "offline" or name != "gnn" or "after_seconds" in arm
+                        or "before_seconds" in arm):
+                    raise ValueError("unmeasured is allowed only for offline GNN")
+            elif status == "measured":
+                seconds = arm["after_seconds"]
+                if (type(seconds) not in (int, float) or not math.isfinite(seconds)
+                        or seconds < 0 or (mode == "offline" and name == "gnn")):
+                    raise ValueError("invalid measured duration/state")
+            else:
+                raise ValueError("invalid observation state")
+            if "before_seconds" in arm:
+                before = arm["before_seconds"]
+                if type(before) not in (int, float) or not math.isfinite(before) or before < 0:
+                    raise ValueError("invalid baseline duration")
+        if not isinstance(data.get("history", []), list):
+            raise ValueError("invalid historical snapshot list")
+        if not all(isinstance(snapshot, dict) for snapshot in data.get("history", [])):
+            raise ValueError("invalid historical snapshot")
+        historical = data.get("historical_gnn", [])
+        if not isinstance(historical, list):
+            raise ValueError("invalid historical GNN list")
+        for observation in historical:
+            date.fromisoformat(observation["recorded"])
+            if not all(isinstance(observation["host"][key], str) and observation["host"][key]
+                       for key in ("platform", "python", "cpus")):
+                raise ValueError("invalid historical host")
+            arm = observation["observation"]
+            seconds = arm["after_seconds"]
+            if (arm["name"] != "gnn" or type(seconds) not in (int, float)
+                    or not math.isfinite(seconds) or seconds < 0):
+                raise ValueError("invalid historical GNN observation")
+        suite = data["suite"]
+        if (type(suite["tests"]) is not int or type(suite["passed"]) is not int
+                or not 0 <= suite["passed"] <= suite["tests"]
+                or type(suite["coverage_percent"]) not in (int, float)
+                or not 0 <= suite["coverage_percent"] <= 100):
+            raise ValueError("invalid observed suite totals")
+    except (KeyError, TypeError, ValueError) as error:
+        raise SystemExit(f"invalid timing evidence: {error}") from None
+
+
+def _historical_gnn(previous: dict | None) -> list[dict]:
+    """Carry original date/host/bytes, without nesting or inventing a pin binding."""
+    if previous is None:
+        return []
+    history = list(previous.get("historical_gnn", []))
+    for arm in previous["arms"]:
+        if arm["name"] == "gnn" and arm.get("status", "measured") == "measured":
+            observation = {
+                "recorded": previous["recorded"],
+                "host": dict(previous["host"]),
+                "observation": dict(arm),
+            }
+            if observation not in history:
+                history.append(observation)
+    return history
+
+
+def capture(offline: bool = False) -> int:
+    """Measure admitted arms; offline mode explicitly leaves current GNN unmeasured."""
+    previous = None
+    if DATA_PATH.exists():
+        previous = json.loads(DATA_PATH.read_text(encoding="utf-8"))
+        _validate_data(previous)
+    history = [] if previous is None else list(previous.get("history", []))
+    if previous is not None:
+        history.append({key: value for key, value in previous.items() if key != "history"})
+    data = {
         "schema": SCHEMA,
         "recorded": date.today().isoformat(),
         "host": {
@@ -127,23 +218,26 @@ def capture() -> int:
             "python": platform.python_version(),
             "cpus": str(os.cpu_count()),
         },
+        "capture_mode": "offline" if offline else "full",
+        "historical_gnn": _historical_gnn(previous),
+        "history": history,
         "arms": [],
         "suite": {},
     }
 
-    def entry(name: str) -> dict:
-        return next(arm for arm in data["arms"] if arm["name"] == name)
+    docs_command = ["./run.sh", "docs", "--output-dir", str(DATA_PATH.parent.resolve())]
 
     def write() -> None:
+        _validate_data(data)
         DATA_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         DOC_PATH.write_text(render(data), encoding="utf-8")
 
     def measure(name: str, before: list[str] | None, after: str) -> None:
-        record: dict[str, object] = {"name": name, "after_command": after}
+        record = {"name": name, "after_command": after, "status": "measured"}
         if before is not None:
             record["before_command"] = "python " + " ".join(before[1:])
             record["before_seconds"] = round(timed(before)[0], 2)
-        seconds, output = timed(["./run.sh", name])
+        seconds, output = timed(docs_command if name == "docs" else ["./run.sh", name])
         record["after_seconds"] = round(seconds, 2)
         print(f"{name:9s} {seconds:7.2f}s", file=sys.stderr)
         if name == "test-cov":
@@ -158,23 +252,29 @@ def capture() -> int:
             }
         data["arms"].append(record)
 
-    # The docs arm verifies the rendered page, so it cannot be timed against a
-    # page that already claims its own duration: the other arms are measured
-    # and written first, the docs arm runs against that page, and the final
-    # page is then verified by one more docs run.
     for name, before, after in ARMS:
-        if name != "docs":
+        if name == "docs":
+            continue
+        if offline and name == "gnn":
+            data["arms"].append({
+                "name": "gnn", "after_command": after, "status": "unmeasured",
+                "reason": "offline refresh: GNN acquisition and verification were not executed",
+            })
+        else:
             measure(name, before, after)
+    # Bootstrap: docs checks this first complete non-docs record before its own
+    # duration can exist. A failed docs run is never appended as a measurement.
     write()
     measure("docs", None, "./run.sh docs")
     write()
-    timed(["./run.sh", "docs"])
+    timed(docs_command)
     print(f"wrote {DATA_PATH} and {DOC_PATH}", file=sys.stderr)
     return 0
 
 
 def render(data: dict) -> str:
     """The gate-status page for one measurements record."""
+    _validate_data(data)
     pin = load_pin(PIN_PATH)
     jobs, actions = workflow_facts()
     suite = data["suite"]
@@ -186,29 +286,29 @@ def render(data: dict) -> str:
         "",
         "# Gate status",
         "",
-        "The gate has one entry point, `./run.sh`, and every arm of it is the exact",
-        "command `.github/workflows/ci.yml` runs. This page records what each arm",
-        f"costs on the host that measured it ({data['host']['platform']},",
-        f"CPython {data['host']['python']}, {data['host']['cpus']} CPUs) on",
-        f"{data['recorded']}.",
+        "The gate has one entry point, `./run.sh`; CI calls the same arms.",
+        "Measured rows in this record were observed on",
+        f"{data['host']['platform']}, CPython {data['host']['python']},",
+        f"{data['host']['cpus']} CPUs on {data['recorded']}.",
+        "An offline refresh does not execute or qualify the GNN arm.",
         "",
         "## Arms",
         "",
-        "| Arm | Command | Before (s) | After (s) |",
-        "| --- | --- | --- | --- |",
+        "| Arm | Command | Before (s) | After (s) | Observation |",
+        "| --- | --- | --- | --- | --- |",
     ]
     by_name = {arm["name"]: arm for arm in data["arms"]}
     for name in (arm[0] for arm in ARMS):
         arm = by_name.get(name)
         if arm is None:
             continue
-        before = (
-            f"{arm['before_seconds']:.2f}"
-            if "before_seconds" in arm
-            else "— (new)"
-        )
+        if arm.get("status", "measured") == "unmeasured":
+            before, after, status = "—", "unmeasured", "offline; not executed"
+        else:
+            before = f"{arm['before_seconds']:.2f}" if "before_seconds" in arm else "— (new)"
+            after, status = f"{arm['after_seconds']:.2f}", "measured"
         lines.append(
-            f"| `{arm['name']}` | `{arm['after_command']}` | {before} | {arm['after_seconds']:.2f} |"
+            f"| `{arm['name']}` | `{arm['after_command']}` | {before} | {after} | {status} |"
         )
     lines += [
         "",
@@ -221,10 +321,24 @@ def render(data: dict) -> str:
         "on the two other versions, in the same job and install as lint and docs.",
         "`test`, `docs` and `gnn` had no separate step.",
         "",
-        "Every number is one run on the host named above, which is shared with",
-        "other work: the same command moves by seconds from run to run. Read the",
-        "table for which work each arm does and which of it the earlier workflow",
-        "repeated, not for small deltas between two runs.",
+        "Measured values are observations, not speedup claims. Explicit historical",
+        "GNN values below retain their own original dates and hosts; they are not",
+        "fresh success, not a current After value, and not bound retroactively to",
+        "the current pin. Historical source snapshots remain in the JSON record.",
+        "",
+        "## Historical GNN observations",
+        "",
+        *(
+            [
+                "| Recorded | Host | Python | Historical seconds |",
+                "| --- | --- | --- | --- |",
+                *[
+                    f"| {item['recorded']} | {item['host']['platform']} | "
+                    f"{item['host']['python']} | {item['observation']['after_seconds']:.2f} |"
+                    for item in data.get("historical_gnn", [])
+                ],
+            ] if data.get("historical_gnn") else ["No historical GNN timing is recorded."]
+        ),
         "",
         "## Suite",
         "",
@@ -290,8 +404,9 @@ def render(data: dict) -> str:
         "",
         "```bash",
         "./run.sh ci        # every arm, in CI order",
-        "./run.sh timings   # re-measure the arms and regenerate this page",
-        "./run.sh docs      # verify links and that this page matches its data",
+        "./run.sh timings           # full measurement, including network-dependent GNN",
+        "./run.sh timings --offline # offline arms; GNN unmeasured, history retained",
+        "./run.sh docs              # check links and report consistency/count/dispatch",
         "```",
         "",
     ]
@@ -302,8 +417,7 @@ def check() -> int:
     """Refuse a page that no longer matches its data or the live repository."""
     problems: list[str] = []
     data = json.loads(DATA_PATH.read_text(encoding="utf-8"))
-    if data.get("schema") != SCHEMA:
-        raise SystemExit(f"{DATA_PATH} schema is {data.get('schema')!r}, expected {SCHEMA!r}")
+    _validate_data(data)
 
     recorded = [arm["name"] for arm in data["arms"]]
     unmeasured = [name for name, _, _ in ARMS if name != "docs" and name not in recorded]
@@ -344,17 +458,37 @@ def check() -> int:
         print(problem)
     if problems:
         return 1
-    print(f"gate status current: {len(recorded)} arms, {live_tests} tests")
+    print(
+        f"gate report consistent: {len(recorded)} arms, {live_tests} tests; "
+        f"GNN {'unmeasured (offline)' if data.get('capture_mode') == 'offline' else 'recorded'}"
+    )
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    global DATA_PATH, DOC_PATH
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--capture", action="store_true", help="measure the arms and regenerate")
     mode.add_argument("--check", action="store_true", help="verify the committed page")
+    parser.add_argument("--offline", action="store_true", help="capture without GNN/network acquisition")
+    parser.add_argument(
+        "--output-dir", type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="measurement/page directory; forwarded explicitly to child docs checks",
+    )
     args = parser.parse_args(argv)
-    return check() if args.check else capture()
+    if args.offline and not args.capture:
+        parser.error("--offline requires --capture")
+    previous_paths = DATA_PATH, DOC_PATH
+    DATA_PATH = args.output_dir / "arm-timings.json"
+    DOC_PATH = args.output_dir / "gate-status.md"
+    try:
+        if args.capture:
+            args.output_dir.mkdir(parents=True, exist_ok=True)
+        return check() if args.check else capture(offline=args.offline)
+    finally:
+        DATA_PATH, DOC_PATH = previous_paths
 
 
 if __name__ == "__main__":

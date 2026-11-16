@@ -46,6 +46,12 @@ Document processing pipeline for the Open ISSS site.
 | `test` | `pytest` | `.` |
 | `lint` | `ruff check .` | `.` |
 
+Downloads return qualified source/content receipts; metadata validates receipt batches before publication. Conversion and figure consumers follow immutable generations selected by `active.json`; legacy flat files are not current inputs. `LanguageAnalyzer` takes the converted root. Incomplete crawl/download outcomes propagate nonzero through standalone and pipeline entry points.
+
+Use `timings --offline` only for actual offline measurement; current GNN remains unmeasured with prior provenance retained. Generated evidence/projections require canonical producers; no hand-sync or handwritten metrics.
+
+I5's real parser/type-report consumer was qualified separately in explicit-source mode and against this member's existing installed v5.0.3 runtime, using complete frozen content and checked module-import lifetime; installed mode also verifies the real PEP 610 Git origin. A mismatched producer runtime was refused and was not repaired, hidden, or used as installed proof. These receipts are neither scientific execution attestation nor the full provisioning/network GNN arm; current GNN timing remains unmeasured.
+
 ## Required local PR check
 
 The required GitHub status is `gate (local, 3.12)`. Use a clean checkout of

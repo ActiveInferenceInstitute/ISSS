@@ -1,5 +1,6 @@
 """Tests for ``web_scraper.WebScraper`` — seeds, filtering, depth and budget."""
 
+import pytest
 import requests
 
 from web_scraper import WebScraper
@@ -281,3 +282,137 @@ def test_a_small_budget_still_reaches_the_second_seed(fixture_site, local_scrape
     assert scraper.get_document_urls() == [f"{fixture_site.base_url}/editor_upload/second.pdf"]
     assert scraper.total_scraped_pages == 3
 
+
+
+@pytest.mark.parametrize(
+    ('url', 'valid'),
+    [
+        ('https://isss.org/a', True),
+        ('http://www.isss.org/a', True),
+        ('https://journals.isss.org:443/a', True),
+        ('https://notisss.org/a', False),
+        ('https://isss.org.evil.invalid/a', False),
+        ('ftp://web3.isss.org/a', False),
+        ('file://isss.org/a', False),
+        ('https://user:password@isss.org/a', False),
+        ('https://isss.org:bad/a', False),
+        ('https://isss.org\\@evil.invalid/a', False),
+    ],
+)
+def test_hostname_scheme_and_authority_boundary(url, valid):
+    assert WebScraper.is_valid_url(url) is valid
+
+
+class _Response:
+    def __init__(self, text='', status=200, location=None):
+        self.text = text
+        self.status_code = status
+        self.headers = {} if location is None else {'Location': location}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f'HTTP {self.status_code}')
+
+
+def _responses(monkeypatch, routes):
+    requested = []
+
+    def fetch(url, **kwargs):
+        requested.append(url)
+        return routes[url]
+
+    monkeypatch.setattr(requests, 'get', fetch)
+    return requested
+
+
+def test_empty_success_and_http_failure_are_distinct(monkeypatch):
+    _responses(monkeypatch, {
+        'https://isss.org/empty': _Response('<p>no documents</p>'),
+        'https://isss.org/error': _Response('<a href=\"bad.pdf\">bad</a>', status=500),
+    })
+    empty = WebScraper('https://isss.org/empty').start_crawling()
+    failed = WebScraper('https://isss.org/error').start_crawling()
+    assert empty.status == 'successful-empty'
+    assert empty.successful_pages == 1
+    assert empty.failures == ()
+    assert failed.status == 'failed'
+    assert failed.successful_pages == 0
+    assert failed.document_urls == ()
+    assert 'HTTP 500' in failed.failures[0]['error']
+
+
+@pytest.mark.parametrize('status', [404, 500])
+def test_error_document_links_are_never_discovered(monkeypatch, status):
+    requested = _responses(monkeypatch, {
+        'https://isss.org/error': _Response('<a href=\"error.pdf\">file</a>', status=status)
+    })
+    result = WebScraper('https://isss.org/error').start_crawling()
+    assert result.status == 'failed'
+    assert result.document_urls == ()
+    assert requested == ['https://isss.org/error']
+
+
+def test_invalid_seed_does_not_prevent_successful_peer(monkeypatch):
+    requested = _responses(monkeypatch, {
+        'https://isss.org/good': _Response('<a href=\"/good.pdf\">good</a>')
+    })
+    scraper = WebScraper(seed_urls=['https://notisss.org/', 'https://isss.org/good'])
+    result = scraper.start_crawling()
+    assert result.status == 'partial'
+    assert result.document_urls == ('https://isss.org/good.pdf',)
+    assert result.successful_pages == 1
+    assert result.failures[0]['url'] == 'https://notisss.org/'
+    assert requested == ['https://isss.org/good']
+
+
+def test_redirect_is_admitted_before_the_next_request(monkeypatch):
+    requested = _responses(monkeypatch, {
+        'https://isss.org/start': _Response(status=302, location='https://notisss.org/outside')
+    })
+    result = WebScraper('https://isss.org/start').start_crawling()
+    assert result.status == 'failed'
+    assert result.document_urls == ()
+    assert requested == ['https://isss.org/start']
+
+
+def test_relative_links_resolve_against_admitted_redirect_destination(monkeypatch):
+    requested = _responses(monkeypatch, {
+        'https://isss.org/start': _Response(status=302, location='/destination/'),
+        'https://isss.org/destination/': _Response('<a href=\"paper.pdf\">paper</a>'),
+    })
+    result = WebScraper('https://isss.org/start').start_crawling()
+    assert result.status == 'successful'
+    assert result.document_urls == ('https://isss.org/destination/paper.pdf',)
+    assert requested == ['https://isss.org/start', 'https://isss.org/destination/']
+
+
+def test_mutable_document_list_remains_authoritative_between_filter_calls():
+    scraper = WebScraper()
+    first, second, third = (
+        'https://isss.org/a.pdf', 'https://isss.org/b.pdf', 'https://isss.org/c.pdf'
+    )
+    scraper.filter_documents([first, second])
+    exposed = scraper.get_document_urls()
+    exposed.remove(first)
+    exposed.append(third)
+    scraper.filter_documents([first, third, first + '#page=2', 'https://notisss.org/no.pdf'])
+    assert scraper.get_document_urls() is exposed
+    assert exposed == [second, third, first]
+    assert scraper.total_documents_found == 3
+
+
+def test_budget_truncation_is_explicit_partial_discovery(monkeypatch):
+    _responses(monkeypatch, {
+        'https://isss.org/': _Response('<a href=\"paper.pdf\">paper</a><a href=\"/next\">next</a>')
+    })
+    result = WebScraper('https://isss.org/', max_pages=1).start_crawling()
+    assert result.status == 'partial'
+    assert result.truncated
+    assert result.failures == ()
+    assert result.document_urls == ('https://isss.org/paper.pdf',)

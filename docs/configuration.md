@@ -13,9 +13,9 @@ run `python main.py`.
 | `MAX_PAGES` | `250` | Total pages fetched in one discovery run, across every seed, so a run stays finite. |
 | `DOWNLOAD_PATH` | `downloaded_documents` | Where downloaded files are saved. |
 | `ARCHIVE_PATH` | `archived_documents` | Where `metadata.json` is written. |
-| `CONVERTED_PATH` | `converted_documents` | Where the conversion stage writes `text/` and `pages/`. |
+| `CONVERTED_PATH` | `converted_documents` | Conversion generations and their `active.json` selection. |
 | `OCR_OUTPUT_PATH` | `ocr_texts` | Used by the standalone OCR demo, not by `main()`. |
-| `FIGURE_OUTPUT_PATH` | `extracted_figures` | Where the extracted figures and `figures.json` are written. |
+| `FIGURE_OUTPUT_PATH` | `extracted_figures` | Figure generations and their `active.json` selection. |
 | `LANGUAGE_ANALYSIS_OUTPUT_PATH` | `language_analysis` | Where the statistics report and summary are written. |
 
 ## Module parameters
@@ -37,14 +37,9 @@ run `python main.py`.
 - `is_document_url(url)` / `is_crawl_utility(url)` — the extension test for
   documents and the site-machinery test (login, admin, feed, search, reply and
   REST endpoints) that keeps them out of the crawl queue.
-- `is_valid_url(url)` — a URL is valid when it has a scheme and netloc and
-  the netloc ends with `isss.org`, so both `web3.isss.org` and
-  `www.isss.org` links are followed.
-- Recognized document extensions: `.pdf`, `.docx`, `.pptx`, `.xlsx`
-  (`filter_documents`, `is_document_url`), matched after normalization so a
-  `report.pdf#page=2` link is still recorded.
-- Page requests use a 30-second timeout; a failing page is reported and the
-  crawl continues.
+- URL admission requires HTTP(S), an exact `isss.org` hostname or its subdomain, valid port syntax, and no userinfo/backslash ambiguity. `notisss.org` and `isss.org.evil.invalid` are not allowed. The same boundary is enforced on seeds, links, and redirects before the next request.
+- Recognized document extensions remain `.pdf`, `.docx`, `.pptx`, `.xlsx`, after normalization.
+- Discovery returns explicit successful, successful-empty, partial, or failed outcomes. Invalid/failed seeds and budget truncation remain visible even when another seed finds documents; incomplete standalone/pipeline outcomes exit nonzero.
 - The full rules are in
   [implementation-status.md](implementation-status.md#discovery-contract-stage-1).
 
@@ -53,55 +48,32 @@ run `python main.py`.
 - Constructor: `DocumentDownloader(base_url, save_path, seed_urls=None,
   max_pages=None)` — creates `save_path` if needed and forwards the
   discovery settings to its internal `WebScraper`.
-- `save_document(session, url)` — downloads in 1 KiB chunks, skips files that
-  already exist, and returns the file name it wrote.
-- `document_filename(url)` — the last segment of the URL path, so a query
-  string or fragment cannot leak into the file name.
-- `with_content_type_extension(filename, content_type)` — adds the extension
-  the response type implies when the URL carried none. The naming rules are in
-  [implementation-status.md](implementation-status.md#download-contract-stage-2).
-- `download_documents()` — crawls via an internal `WebScraper`, then
-  downloads all discovered document URLs concurrently.
+- `save_document(session, url)` returns a qualified `DownloadReceipt`, not a filename inferred from existence. Receipt/content agreement is required for cache use and downstream metadata/conversion.
+- Filename handling retains content-type extension rules while URL/content identities distinguish competing sources with the same basename. Partial downloads and failed receipt publication cannot become completed cache entries.
+- Redirects are admitted before following them. The downloader retains successful peers and reports incomplete batch/discovery status rather than manufacturing an empty success.
 
 ### `MetadataArchiver` (`metadata_archiver.py`)
 
 - Constructor: `MetadataArchiver(archive_path)` — creates the directory and
   initializes an empty `metadata.json` if absent.
-- `archive_metadata(document_path, url, document_type)` — appends one record
-  with this schema:
-
-| Field | Value |
-| --- | --- |
-| `document_name` | Base name of the document file. |
-| `document_path` | Full path of the document. |
-| `source_url` | Source URL the document was downloaded from. |
-| `document_type` | File extension (e.g. `pdf`, `docx`). |
-| `download_date` | Timestamp, format `YYYY-MM-DD HH:MM:SS`. |
+- Metadata admission consumes qualified download receipts in a complete batch. Source/final URLs, actual file identity, and original acquisition timestamp are retained.
+- The whole batch is validated before one atomic array publication; failure leaves earlier metadata intact. Cached receipts do not append duplicate acquisition records.
 
 ### `FileConverter` (`file_converter.py`)
 
-- Constructor: `FileConverter(download_path, converted_path)` — creates
-  `converted_path/text/` and `converted_path/pages/` if needed.
-- `convert_files()` — converts every `.pdf`, `.docx`, `.pptx` and `.xlsx` file
-  in `download_path`, in sorted name order, and returns one record per
-  converted document (`document_name`, `page_count`, `characters`).
-- `convert_document(document_path)` — converts one document; returns `None`
-  and reports the failure when the document cannot be read.
-- Module constants: `DOCUMENT_EXTENSIONS`, `PDF_DPI` (150) and
-  `PAGE_SEPARATOR` (`\f`). The artifact contract is in
-  [implementation-status.md](implementation-status.md#conversion-contract-stage-4).
+- Constructor: `FileConverter(download_path, converted_path)`.
+- `convert_files(document_paths=None)` activates only successful selected inputs for that invocation; `convert_document(document_path)` publishes one complete replacement or deactivates its failed replacement.
+- Text/page artifacts and source/output hashes live in immutable `.generations/<id>/` sets with `record.json`; `active.json` selects current qualified sets.
+- Consumers never infer current inputs by scanning legacy flat files. Failed, shrinking, retired, stale, or corrupt sets remain excluded without deleting historical/unowned files.
+- Existing page DPI, separators, and scientific extraction rules remain; see the [conversion contract](implementation-status.md#conversion-contract-stage-4).
 - Requires `PyMuPDF`, `python-docx`, `python-pptx` and `openpyxl`; image-only
   PDF pages additionally need the system Tesseract binary.
 
 ### `FigureExtractor` (`figure_extractor.py`)
 
-- Constructor: `FigureExtractor(converted_path, figure_output_path)` — reads
-  `converted_path/pages/` and creates `figure_output_path` if needed.
-- `extract_figures()` — extracts the figures of every document in sorted order
-  and writes `figures.json`; returns the report.
-- `extract_document(document_name)` and
-  `extract_page(page_path, document_name, page_number, first_figure_number=1)`
-  — work on one document or one page; useful on their own for large runs.
+- Constructor: `FigureExtractor(converted_path, figure_output_path)` consumes active qualified conversion generations.
+- `extract_figures()` atomically selects successful figure generations in `active.json`; `extract_document(document_name)` replaces a selected source document, with source extensions retained in document identity.
+- Crops, page boxes, caption candidates, and hashes are retained in immutable generation records. Legacy `figures.json` is not rewritten or scanned as current evidence.
 - Module constants: `INK_THRESHOLD`, `MERGE_DISTANCE`, `MIN_FIGURE_SIDE`,
   `MIN_FIGURE_AREA_RATIO`, `MAX_FIGURE_AREA_RATIO`, `TEXT_COVERAGE_LIMIT` and
   `CAPTION_MAX_GAP`. The heuristic and its limits are in
@@ -110,12 +82,8 @@ run `python main.py`.
 
 ### `LanguageAnalyzer` (`language_analyzer.py`)
 
-- Constructor: `LanguageAnalyzer(text_path, output_path)` — creates
-  `output_path` if needed. `main.py` passes `<CONVERTED_PATH>/text`, the
-  directory stage 4 writes.
-- `analyze_language()` — analyses every `.txt` file in `text_path` in sorted
-  order and writes `language_analysis.json` and `SUMMARY.md` into
-  `output_path`; returns the report.
+- Constructor: `LanguageAnalyzer(converted_path, output_path)` takes the conversion root, not a flat `text/` directory.
+- `analyze_language()` consumes only qualified active text and writes `language_analysis.json` plus `SUMMARY.md`. Vocabulary counters and running weighted totals retain descriptive definitions without corpus-sized token/sentence lists.
 - `analyze_document(document_path)` — analyses one text file and returns its
   record.
 - Module constants: `WORD_PATTERN`, `SENTENCE_PATTERN`, `REPORT_NAME`,

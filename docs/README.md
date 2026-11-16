@@ -34,7 +34,7 @@ local run is the same gate as a hosted one:
 | `docs` | `./run.sh docs` | [Publishing identity digests](workflows/publishing.md), relative Markdown links and generated-page freshness. |
 | `gnn` | `./run.sh gnn` | The pinned GNN conformance check; it installs the pinned parser, so it needs network. |
 | `ci` | `./run.sh ci` | Every arm above, in that order. |
-| `timings` | `./run.sh timings` | Re-measures the arms and regenerates [`_generated/`](_generated/README.md). |
+| `timings` | `./run.sh timings` or `./run.sh timings --offline` | Full measurement includes GNN; offline capture retains GNN history as current-unmeasured. `scripts/gate_report.py --capture --offline --output-dir PATH` stages evidence outside source. |
 
 There is no `types` arm: the repository configures no type checker. The suite
 also declares no pytest markers, so `test` is the whole suite minus coverage
@@ -47,6 +47,8 @@ recorded in [_generated/gate-status.md](_generated/gate-status.md), which
 `scripts/gate_report.py` renders from
 [_generated/arm-timings.json](_generated/arm-timings.json). Do not copy those
 numbers into prose; `./run.sh docs` fails when the page and its data diverge.
+
+Current artifacts are discovered through source-bound receipts and `active.json` generation selections, not legacy flat-file scans. Historical site/measurement records and new offline software proof are separate evidence.
 
 `.github/workflows/ci.yml` has three jobs: `gate` (`3.12`, which runs `lint`,
 `test-cov` and `docs` on one install), `test` (`3.13` and `3.14`, each running

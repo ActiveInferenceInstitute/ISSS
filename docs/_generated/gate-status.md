@@ -4,21 +4,21 @@
 
 # Gate status
 
-The gate has one entry point, `./run.sh`, and every arm of it is the exact
-command `.github/workflows/ci.yml` runs. This page records what each arm
-costs on the host that measured it (macOS-27.0.1-arm64-arm-64bit-Mach-O,
-CPython 3.14.10, 18 CPUs) on
-2026-11-12.
+The gate has one entry point, `./run.sh`; CI calls the same arms.
+Measured rows in this record were observed on
+macOS-27.0.1-arm64-arm-64bit, CPython 3.12.16,
+18 CPUs on 2026-11-16.
+An offline refresh does not execute or qualify the GNN arm.
 
 ## Arms
 
-| Arm | Command | Before (s) | After (s) |
-| --- | --- | --- | --- |
-| `lint` | `./run.sh lint` | 0.03 | 0.04 |
-| `test` | `./run.sh test` | — (new) | 8.70 |
-| `test-cov` | `./run.sh test-cov` | 6.85 | 6.79 |
-| `docs` | `./run.sh docs` | — (new) | 0.68 |
-| `gnn` | `./run.sh gnn` | — (new) | 0.88 |
+| Arm | Command | Before (s) | After (s) | Observation |
+| --- | --- | --- | --- | --- |
+| `lint` | `./run.sh lint` | 0.49 | 0.19 | measured |
+| `test` | `./run.sh test` | — (new) | 11.41 | measured |
+| `test-cov` | `./run.sh test-cov` | 10.21 | 15.83 | measured |
+| `docs` | `./run.sh docs` | — (new) | 1.62 | measured |
+| `gnn` | `./run.sh gnn` | — | unmeasured | offline; not executed |
 
 The old CI step is measured with the same interpreter that runs the arm
 (`python -m ruff check .`, `python -m pytest`). Each arm adds one `bash`
@@ -29,18 +29,24 @@ gate now lints once, gates coverage once, and runs the coverage-free arm
 on the two other versions, in the same job and install as lint and docs.
 `test`, `docs` and `gnn` had no separate step.
 
-Every number is one run on the host named above, which is shared with
-other work: the same command moves by seconds from run to run. Read the
-table for which work each arm does and which of it the earlier workflow
-repeated, not for small deltas between two runs.
+Measured values are observations, not speedup claims. Explicit historical
+GNN values below retain their own original dates and hosts; they are not
+fresh success, not a current After value, and not bound retroactively to
+the current pin. Historical source snapshots remain in the JSON record.
+
+## Historical GNN observations
+
+| Recorded | Host | Python | Historical seconds |
+| --- | --- | --- | --- |
+| 2026-11-12 | macOS-27.0.1-arm64-arm-64bit-Mach-O | 3.13.18 | 1.56 |
 
 ## Suite
 
 | Measurement | Value |
 | --- | --- |
-| Tests collected | 91 |
-| Tests passed by the `test-cov` arm | 91 |
-| Coverage (gate: 90%) | 100.00% |
+| Tests collected | 320 |
+| Tests passed by the `test-cov` arm | 320 |
+| Coverage (gate: 90%) | 96.72% |
 
 The suite declares no pytest markers, so the default `test` arm runs all
 of it and only drops coverage instrumentation; `test-cov` adds the
@@ -92,6 +98,7 @@ method (see [TO-DO.md](../../TO-DO.md#readiness-standard-gaps-measured-2026-11-1
 
 ```bash
 ./run.sh ci        # every arm, in CI order
-./run.sh timings   # re-measure the arms and regenerate this page
-./run.sh docs      # verify links and that this page matches its data
+./run.sh timings           # full measurement, including network-dependent GNN
+./run.sh timings --offline # offline arms; GNN unmeasured, history retained
+./run.sh docs              # check links and report consistency/count/dispatch
 ```

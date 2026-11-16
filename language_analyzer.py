@@ -1,8 +1,8 @@
 """Language analysis pipeline stage: descriptive statistics over document text.
 
-Stage 7 of the pipeline. ``LanguageAnalyzer`` reads every ``.txt`` file in
-``text_path`` — the ``text/`` directory written by stage 4 — and writes two
-artifacts under ``output_path``:
+Stage 7 reads only source/content-qualified text selected by stage 4's
+``active.json`` manifest, never obsolete or failed-generation directory entries.
+It writes two artifacts under ``output_path``:
 
 - ``language_analysis.json`` — one record per document plus the corpus totals.
 - ``SUMMARY.md`` — the same figures as a human-readable summary.
@@ -26,15 +26,16 @@ two runs over the same text agree:
 Runnable standalone: ``python language_analyzer.py``.
 """
 
-import json
 import os
 import re
 from collections import Counter
 
+from pipeline_artifacts import ArtifactStore, atomic_json
+
 #: A word: letters, digits and apostrophes after lowercasing.
 WORD_PATTERN = re.compile(r"[a-z0-9']+")
-#: Characters that end a sentence.
-SENTENCE_PATTERN = re.compile(r'[.!?]+')
+#: Nonempty segments between the existing sentence delimiters.
+SENTENCE_PATTERN = re.compile(r'[^.!?]+')
 #: File names of the two artifacts this stage writes.
 REPORT_NAME = 'language_analysis.json'
 SUMMARY_NAME = 'SUMMARY.md'
@@ -46,42 +47,29 @@ TOP_WORDS_CORPUS = 100
 class LanguageAnalyzer:
     """Compiles descriptive statistics over the converted document text."""
 
-    def __init__(self, text_path, output_path):
-        """Initializes the LanguageAnalyzer with input and output paths.
-
-        Args:
-            text_path (str): Directory holding the ``.txt`` document text.
-            output_path (str): Directory where the report and the summary are
-                written.
-        """
-        self.text_path = text_path
+    def __init__(self, converted_path, output_path):
+        self.store = ArtifactStore(converted_path, 'conversion')
         self.output_path = output_path
         os.makedirs(output_path, exist_ok=True)
 
     def analyze_language(self):
-        """Analyses every text file in the input directory.
-
-        Returns:
-            dict: The report that was written: one record per document plus
-            the corpus totals.
-        """
+        """Aggregate qualified current text without retaining corpus token lists."""
+        self.store = ArtifactStore(self.store.root, 'conversion')
         records = []
-        corpus_words = []
-        corpus_words_per_sentence = []
-        for filename in sorted(os.listdir(self.text_path)):
-            if not filename.lower().endswith('.txt'):
-                continue
-            with open(os.path.join(self.text_path, filename), encoding='utf-8') as document_file:
-                text = document_file.read()
-            record, words, words_per_sentence = self._document_statistics(filename, text)
+        corpus_counts = Counter()
+        for converted in self.store.active_documents():
+            path = self.store.resolve(converted, converted['text_file'])
+            record, counts = self._document_statistics(
+                path.name, path.read_text(encoding='utf-8')
+            )
             records.append(record)
-            corpus_words.extend(words)
-            corpus_words_per_sentence.extend(words_per_sentence)
-
+            corpus_counts.update(counts)
+        records.sort(key=lambda record: record['document_name'])
         report = {
             'document_count': len(records),
             'documents': records,
-            'totals': self._totals(records, corpus_words, corpus_words_per_sentence),
+            'totals': self._totals(records, corpus_counts),
+            'failures': dict(self.store.failures),
         }
         self._write_report(report)
         print(
@@ -101,54 +89,48 @@ class LanguageAnalyzer:
         """
         with open(document_path, encoding='utf-8') as document_file:
             text = document_file.read()
-        record, _, _ = self._document_statistics(os.path.basename(document_path), text)
+        record, _ = self._document_statistics(os.path.basename(document_path), text)
         return record
 
     @staticmethod
     def _document_statistics(name, text):
-        """Returns the statistics of one document and its raw word lists.
-
-        Args:
-            name (str): Name of the document file.
-            text (str): The document text.
-
-        Returns:
-            tuple[dict, list[str], list[int]]: The document record, its words
-            in reading order, and the word count of each sentence.
-        """
-        words = WORD_PATTERN.findall(text.lower())
-        sentences = [segment for segment in SENTENCE_PATTERN.split(text) if segment.strip()]
-        words_per_sentence = [len(WORD_PATTERN.findall(segment)) for segment in sentences]
+        """Return one record and vocabulary counter, using one normalized token rule."""
+        counts = Counter(match.group() for match in WORD_PATTERN.finditer(text.lower()))
+        words = sum(counts.values())
+        letters = sum(len(word) * count for word, count in counts.items())
+        sentences = sum(1 for match in SENTENCE_PATTERN.finditer(text) if match.group().strip())
         record = {
             'document_name': name,
             'characters': len(text),
-            'words': len(words),
-            'unique_words': len(set(words)),
-            'sentences': len(sentences),
-            'average_word_length': _rounded(_mean([len(word) for word in words])),
-            'average_words_per_sentence': _rounded(_mean(words_per_sentence)),
-            'most_common_words': _frequent_words(words, TOP_WORDS_PER_DOCUMENT),
+            'words': words,
+            'unique_words': len(counts),
+            'sentences': sentences,
+            'average_word_length': _average(letters, words),
+            'average_words_per_sentence': _average(words, sentences),
+            'most_common_words': _frequent_words(counts, TOP_WORDS_PER_DOCUMENT),
         }
-        return record, words, words_per_sentence
+        return record, counts
 
     @staticmethod
-    def _totals(documents, words, words_per_sentence):
-        """Aggregates the corpus totals over the analysed documents."""
+    def _totals(documents, counts):
+        words = sum(counts.values())
+        sentences = sum(document['sentences'] for document in documents)
         return {
             'documents': len(documents),
             'characters': sum(document['characters'] for document in documents),
-            'words': len(words),
-            'unique_words': len(set(words)),
-            'sentences': sum(document['sentences'] for document in documents),
-            'average_word_length': _rounded(_mean([len(word) for word in words])),
-            'average_words_per_sentence': _rounded(_mean(words_per_sentence)),
-            'most_common_words': _frequent_words(words, TOP_WORDS_CORPUS),
+            'words': words,
+            'unique_words': len(counts),
+            'sentences': sentences,
+            'average_word_length': _average(
+                sum(len(word) * count for word, count in counts.items()), words
+            ),
+            'average_words_per_sentence': _average(words, sentences),
+            'most_common_words': _frequent_words(counts, TOP_WORDS_CORPUS),
         }
 
     def _write_report(self, report):
         """Writes the JSON report and the Markdown summary."""
-        with open(os.path.join(self.output_path, REPORT_NAME), 'w', encoding='utf-8') as report_file:
-            json.dump(report, report_file, indent=2, ensure_ascii=False)
+        atomic_json(os.path.join(self.output_path, REPORT_NAME), report)
         with open(os.path.join(self.output_path, SUMMARY_NAME), 'w', encoding='utf-8') as summary:
             summary.write(self._summary_markdown(report))
 
@@ -190,25 +172,18 @@ class LanguageAnalyzer:
         return '\n'.join(lines)
 
 
-def _mean(values):
-    """Returns the arithmetic mean, or 0.0 for an empty sequence."""
-    if not values:
-        return 0.0
-    return sum(values) / len(values)
+def _average(total, count):
+    """Round only the final quotient; preserve zero-denominator behavior."""
+    return round(total / count, 2) if count else 0.0
 
 
-def _rounded(value):
-    """Rounds a statistic so the report is stable."""
-    return round(value, 2)
-
-
-def _frequent_words(words, limit):
-    """Returns the most frequent words as records, most frequent first."""
-    counts = Counter(words)
+def _frequent_words(counts, limit):
+    """Return the existing deterministic count-descending, word-ascending order."""
     ordered = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     return [{'word': word, 'count': count} for word, count in ordered[:limit]]
 
 
 if __name__ == '__main__':
-    language_analyzer = LanguageAnalyzer('converted_documents/text', 'language_analysis')
-    language_analyzer.analyze_language()
+    language_analyzer = LanguageAnalyzer('converted_documents', 'language_analysis')
+    report = language_analyzer.analyze_language()
+    raise SystemExit(1 if report['failures'] else 0)

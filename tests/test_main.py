@@ -1,109 +1,173 @@
-"""Tests for the ``main`` entry point: configuration and stages 1-7.
+"""Consumer-level pipeline regressions; only discovery/HTTP boundaries are replaced."""
 
-The scraper, the HTTP session, the downloader, the converter, the figure
-extractor and the analyzer are stubbed, so the test runs offline and writes
-only inside ``tmp_path``.
-"""
-
+import io
 import json
-import os
+
+import pytest
+from docx import Document
 
 import main as pipeline
+from pipeline_artifacts import ArtifactStore
+from web_scraper import CrawlResult
 
 
-def test_seed_urls_start_from_link_bearing_pages():
-    assert pipeline.SEED_URLS[0] == pipeline.BASE_URL
-    assert all(url.startswith("https://") for url in pipeline.SEED_URLS)
-    assert "https://www.isss.org/annual-meetings/" in pipeline.SEED_URLS
-    assert pipeline.MAX_PAGES > 0
+def _docx_bytes(text):
+    document = Document()
+    document.add_paragraph(text)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
 
 
-def test_main_discovers_downloads_archives_and_converts(tmp_path, monkeypatch):
-    urls = [
-        "https://web3.isss.org/proceedings/a.pdf",
-        "https://web3.isss.org/proceedings/b.docx",
-        # A journal platform URL whose last segment carries no extension: the
-        # downloader names it from the response content type.
-        "https://journals.isss.org/index.php/proceedings56th/article/download/1766/611/7584",
-    ]
-    converter_calls = []
-    analyzer_calls = []
-    extractor_calls = []
+@pytest.mark.parametrize('partial', [False, True])
+def test_pipeline_consumes_only_qualified_receipts_and_current_generations(
+    tmp_path, monkeypatch, receipt_factory, capsys, partial
+):
+    monkeypatch.chdir(tmp_path)
+    receipt = receipt_factory('good.docx', _docx_bytes('ISSS AI.'))
+    legacy = tmp_path / 'downloaded_documents' / 'legacy.docx'
+    legacy.write_bytes(_docx_bytes('This unqualified source must never be included.'))
+    legacy_bytes = legacy.read_bytes()
+    stale_text = tmp_path / 'converted_documents' / 'text' / 'obsolete.txt'
+    stale_text.parent.mkdir(parents=True)
+    stale_text.write_text('Obsolete output must never enter the corpus.')
+    old_figure = tmp_path / 'extracted_figures' / 'unknown.png'
+    old_figure.parent.mkdir()
+    old_figure.write_bytes(b'unowned crop')
+    discovery = CrawlResult(
+        'partial' if partial else 'successful', (receipt.source_url,), 1,
+        ({'url': 'https://www.isss.org/broken', 'error': 'offline failure'},) if partial else (),
+        False,
+    )
+    monkeypatch.setattr(pipeline.WebScraper, 'start_crawling', lambda self: discovery)
 
-    class StubScraper:
-        def __init__(self, base_url, seed_urls=None, max_pages=None):
-            self.base_url = base_url
-            self.seed_urls = seed_urls
-            self.max_pages = max_pages
+    async def download(urls):
+        failures = [{'source_url': 'https://web3.isss.org/missing.pdf', 'error': 'HTTP 500'}]
+        return [receipt], failures if partial else []
 
-        def start_crawling(self, max_depth=11):
-            pass
+    monkeypatch.setattr(pipeline, '_download', download)
+    assert pipeline.main() == (1 if partial else 0)
+    archive = tmp_path / 'archived_documents' / 'metadata.json'
+    rows = json.loads(archive.read_text())
+    assert [row['document_name'] for row in rows] == ['good.docx']
+    assert rows[0]['download_date'] == '2020-01-02T03:04:05+00:00'
+    report = json.loads((tmp_path / 'language_analysis' / 'language_analysis.json').read_text())
+    assert report['document_count'] == 1
+    assert report['totals']['words'] == 2
+    assert report['totals']['average_words_per_sentence'] == 2.0
+    store = ArtifactStore(tmp_path / 'converted_documents', 'conversion')
+    active = store.active_documents()
+    assert [entry['document_name'] for entry in active] == ['good.docx']
+    original_text = store.resolve(active[0], active[0]['text_file'])
+    original_bytes = original_text.read_bytes()
+    assert legacy.read_bytes() == legacy_bytes
+    assert stale_text.read_text() == 'Obsolete output must never enter the corpus.'
+    assert old_figure.read_bytes() == b'unowned crop'
+    assert pipeline.main() == (1 if partial else 0)
+    assert json.loads(archive.read_text()) == rows
+    assert original_text.read_bytes() == original_bytes
+    assert ('Pipeline partial:' if partial else 'Pipeline successful:') in capsys.readouterr().out
 
-        def get_document_urls(self):
-            return list(urls)
 
-    class StubSession:
+def test_failed_discovery_preserves_outputs_and_is_not_empty_success(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    marker = tmp_path / 'converted_documents' / 'active.json'
+    marker.parent.mkdir()
+    marker.write_bytes(b'previous complete evidence')
+    failed = CrawlResult('failed', (), 0, ({'url': 'bad', 'error': 'refused'},), False)
+    monkeypatch.setattr(pipeline.WebScraper, 'start_crawling', lambda self: failed)
+
+    async def forbidden_download(urls):
+        raise AssertionError('failed discovery must not start acquisition')
+
+    monkeypatch.setattr(pipeline, '_download', forbidden_download)
+    assert pipeline.main() == 1
+    assert marker.read_bytes() == b'previous complete evidence'
+    assert 'Pipeline failed during discovery' in capsys.readouterr().out
+
+
+def test_successful_empty_discovery_publishes_empty_current_sets(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    empty = CrawlResult('successful-empty', (), 1, (), False)
+    monkeypatch.setattr(pipeline.WebScraper, 'start_crawling', lambda self: empty)
+
+    async def no_documents(urls):
+        return [], []
+
+    monkeypatch.setattr(pipeline, '_download', no_documents)
+    assert pipeline.main() == 0
+    current = json.loads((tmp_path / 'converted_documents' / 'active.json').read_text())
+    assert current['documents'] == []
+    assert current['failures'] == {}
+    assert 'Pipeline successful-empty:' in capsys.readouterr().out
+
+
+def test_download_batch_returns_successful_peers_and_explicit_failures(
+    tmp_path, monkeypatch, receipt_factory
+):
+    monkeypatch.chdir(tmp_path)
+    receipt = receipt_factory('good.docx', _docx_bytes('Qualified document.'))
+
+    class Session:
         async def __aenter__(self):
             return self
 
-        async def __aexit__(self, *exc_info):
+        async def __aexit__(self, *args):
             return False
 
-    class StubConverter:
-        def __init__(self, download_path, converted_path):
-            converter_calls.append((download_path, converted_path))
+    async def acquire(self, session, url):
+        if url == receipt.source_url:
+            return receipt
+        raise RuntimeError('HTTP 500 fixture')
 
-        def convert_files(self):
-            return [{"document_name": "a.pdf", "page_count": 1, "characters": 7}]
+    monkeypatch.setattr(pipeline.aiohttp, 'ClientSession', Session)
+    monkeypatch.setattr(pipeline.DocumentDownloader, 'save_document', acquire)
+    receipts, failures = pipeline.asyncio.run(pipeline._download([
+        receipt.source_url, 'https://isss.org/missing.pdf'
+    ]))
+    assert receipts == [receipt]
+    assert failures == [{
+        'source_url': 'https://isss.org/missing.pdf', 'error': 'HTTP 500 fixture'
+    }]
+    assert receipt.validate() == receipt
 
-    class StubAnalyzer:
-        def __init__(self, text_path, output_path):
-            analyzer_calls.append((text_path, output_path))
 
-        def analyze_language(self):
-            return {"document_count": 0, "documents": [], "totals": {}}
-
-    class StubExtractor:
-        def __init__(self, converted_path, figure_output_path):
-            extractor_calls.append((converted_path, figure_output_path))
-
-        def extract_figures(self):
-            return {"document_count": 0, "figure_count": 0, "documents": []}
-
-    async def stub_save_document(self, session, url):
-        name = pipeline.DocumentDownloader.with_content_type_extension(
-            pipeline.DocumentDownloader.document_filename(url), "application/pdf"
-        )
-        os.makedirs(self.save_path, exist_ok=True)
-        with open(os.path.join(self.save_path, name), "w") as handle:
-            handle.write("payload")
-        return name
-
+def test_pipeline_keeps_acquisition_identity_when_later_batch_input_is_replaced(
+    tmp_path, monkeypatch, receipt_factory
+):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(pipeline, "WebScraper", StubScraper)
-    monkeypatch.setattr(pipeline.aiohttp, "ClientSession", StubSession)
-    monkeypatch.setattr(pipeline.DocumentDownloader, "save_document", stub_save_document)
-    monkeypatch.setattr(pipeline, "FileConverter", StubConverter)
-    monkeypatch.setattr(pipeline, "LanguageAnalyzer", StubAnalyzer)
-    monkeypatch.setattr(pipeline, "FigureExtractor", StubExtractor)
-
-    pipeline.main()
-
-    metadata = json.loads((tmp_path / "archived_documents" / "metadata.json").read_text())
-    # The archive step records the names the downloader reported, so a URL
-    # without an extension is archived under the name it was downloaded as.
-    assert [record["document_name"] for record in metadata] == ["a.pdf", "b.docx", "7584.pdf"]
-    assert [record["document_type"] for record in metadata] == ["pdf", "docx", "pdf"]
-    assert sorted(os.listdir(tmp_path / "downloaded_documents")) == [
-        "7584.pdf",
-        "a.pdf",
-        "b.docx",
+    receipts = [
+        receipt_factory('a.docx', _docx_bytes('First acquired document.')),
+        receipt_factory('b.docx', _docx_bytes('Second acquired document.')),
     ]
-    # Stage 4 runs on the download directory and writes into the configured path.
-    assert converter_calls == [(pipeline.DOWNLOAD_PATH, pipeline.CONVERTED_PATH)]
-    # Stage 6 reads the converted pages and writes its own artifact path.
-    assert extractor_calls == [(pipeline.CONVERTED_PATH, pipeline.FIGURE_OUTPUT_PATH)]
-    # Stage 7 analyses the text stage 4 wrote and writes its own artifact path.
-    assert analyzer_calls == [
-        (os.path.join(pipeline.CONVERTED_PATH, "text"), pipeline.LANGUAGE_ANALYSIS_OUTPUT_PATH)
-    ]
+    discovery = CrawlResult(
+        status='successful',
+        document_urls=tuple(receipt.source_url for receipt in receipts),
+        successful_pages=1, failures=(), truncated=False,
+    )
+    monkeypatch.setattr(pipeline.WebScraper, 'start_crawling', lambda self: discovery)
+
+    async def download(urls):
+        return receipts, []
+
+    monkeypatch.setattr(pipeline, '_download', download)
+    original = pipeline.FileConverter._convert_office
+
+    def replace_later_input(self, document_path):
+        text = original(self, document_path)
+        if document_path.endswith('a.docx'):
+            with open(receipts[1].document_path, 'wb') as handle:
+                handle.write(_docx_bytes('Unreceipted replacement document.'))
+        return text
+
+    monkeypatch.setattr(pipeline.FileConverter, '_convert_office', replace_later_input)
+    assert pipeline.main() == 1
+    archive = json.loads((tmp_path / 'archived_documents' / 'metadata.json').read_text())
+    assert {row['document_name']: row['sha256'] for row in archive} == {
+        receipt.document_name: receipt.sha256 for receipt in receipts
+    }
+    store = ArtifactStore(tmp_path / 'converted_documents', 'conversion')
+    assert [row['document_name'] for row in store.active_documents()] == ['a.docx']
+    assert 'acquisition content changed' in store.failures['b.docx']
+    report = json.loads((tmp_path / 'language_analysis' / 'language_analysis.json').read_text())
+    assert [row['document_name'] for row in report['documents']] == ['a.txt']

@@ -1,4 +1,5 @@
 from collections import deque
+from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 import requests
@@ -25,6 +26,22 @@ UTILITY_QUERY_KEYS = ('s', 'feed', 'replytocom')
 TRACKING_QUERY_KEYS = ('sid', 'sessionid', 'phpsessid', 'jsessionid', 'fbclid', 'gclid')
 
 
+@dataclass(frozen=True)
+class FetchResult:
+    url: str
+    links: tuple[str, ...] = ()
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class CrawlResult:
+    status: str
+    document_urls: tuple[str, ...]
+    successful_pages: int
+    failures: tuple[dict, ...]
+    truncated: bool
+
+
 class WebScraper:
     def __init__(self, base_url="https://web3.isss.org", seed_urls=None, max_pages=None):
         """Initializes the WebScraper with the pages to start crawling from.
@@ -44,6 +61,9 @@ class WebScraper:
         self.document_urls = []  # Stores discovered document URLs.
         self.total_scraped_pages = 0  # Tracks the total number of pages scraped.
         self.total_documents_found = 0  # Tracks the total number of documents found.
+        self.successful_pages = 0
+        self.fetch_failures = []
+        self.truncated = False
 
     def _page_budget_exhausted(self):
         """Checks whether the optional page budget for this run is used up.
@@ -70,22 +90,26 @@ class WebScraper:
             str: The canonical URL, or ``''`` when the URL has no scheme or host
             and cannot be fetched.
         """
-        parsed = urlparse(url)
-        if not parsed.scheme or not parsed.netloc:
+        try:
+            parsed = urlparse(url)
+            if not parsed.scheme or not parsed.netloc:
+                return ''
+            parsed.port  # Reject malformed authorities before normalization.
+            query = [
+                (key, value)
+                for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+                if key.lower() not in TRACKING_QUERY_KEYS and not key.lower().startswith('utm_')
+            ]
+            netloc = parsed.netloc.lower()
+            if netloc.endswith(':80') and parsed.scheme.lower() == 'http':
+                netloc = netloc[:-3]
+            elif netloc.endswith(':443') and parsed.scheme.lower() == 'https':
+                netloc = netloc[:-4]
+            return urlunparse(
+                (parsed.scheme.lower(), netloc, parsed.path or '/', '', urlencode(query), '')
+            )
+        except (TypeError, ValueError):
             return ''
-        query = [
-            (key, value)
-            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-            if key.lower() not in TRACKING_QUERY_KEYS and not key.lower().startswith('utm_')
-        ]
-        netloc = parsed.netloc.lower()
-        if netloc.endswith(':80') and parsed.scheme.lower() == 'http':
-            netloc = netloc[: -len(':80')]
-        elif netloc.endswith(':443') and parsed.scheme.lower() == 'https':
-            netloc = netloc[: -len(':443')]
-        return urlunparse(
-            (parsed.scheme.lower(), netloc, parsed.path or '/', '', urlencode(query), '')
-        )
 
     @staticmethod
     def is_document_url(url):
@@ -119,39 +143,50 @@ class WebScraper:
         keys = [key.lower() for key, _value in parse_qsl(parsed.query, keep_blank_values=True)]
         return any(key in UTILITY_QUERY_KEYS for key in keys)
 
-    def is_valid_url(self, url):
-        """Checks if a URL is valid and belongs to the specified domain.
-        
-        Args:
-            url (str): The URL to validate.
-        
-        Returns:
-            bool: True if the URL is valid and belongs to the *.isss.org domain, False otherwise.
-        """
-        parsed = urlparse(url)
-        return bool(parsed.netloc) and bool(parsed.scheme) and parsed.netloc.endswith('isss.org')
+    @staticmethod
+    def is_valid_url(url):
+        """Admit HTTP(S) on isss.org or a hostname-boundary subdomain only."""
+        if not isinstance(url, str) or any(ord(char) < 33 or char == '\\' for char in url):
+            return False
+        try:
+            parsed = urlparse(url)
+            parsed.port
+            host = (parsed.hostname or '').lower().rstrip('.')
+            return (
+                parsed.scheme.lower() in {'http', 'https'}
+                and parsed.username is None and parsed.password is None
+                and (host == 'isss.org' or host.endswith('.isss.org'))
+            )
+        except ValueError:
+            return False
 
     def get_all_links(self, url):
-        """Fetches all valid links from a given webpage that belong to the specified domain.
-        
-        Args:
-            url (str): The URL of the webpage to scrape.
-        
-        Returns:
-            list: A list of valid URLs found on the page that belong to the *.isss.org domain.
-        """
-        urls = []
+        """Return links or an explicit fetch failure, admitting each redirect."""
+        current = url
         try:
-            response = requests.get(url, timeout=30)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for link in soup.find_all('a', href=True):
-                href = link['href']
-                full_url = urljoin(url, href)  # Resolve relative URLs.
-                if self.is_valid_url(full_url):
-                    urls.append(full_url)
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching {url}: {e}")
-        return urls
+            for _ in range(11):
+                if not self.is_valid_url(current):
+                    raise ValueError(f'disallowed URL or redirect: {current}')
+                with requests.get(current, timeout=30, allow_redirects=False) as response:
+                    if response.status_code in {301, 302, 303, 307, 308}:
+                        location = response.headers.get('Location')
+                        if not location:
+                            raise ValueError('redirect has no Location')
+                        current = urljoin(current, location)
+                        continue
+                    response.raise_for_status()
+                    if not 200 <= response.status_code < 300:
+                        raise ValueError(f'HTTP status {response.status_code}')
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    links = tuple(
+                        full_url
+                        for link in soup.find_all('a', href=True)
+                        if self.is_valid_url(full_url := urljoin(current, link['href']))
+                    )
+                    return FetchResult(url, links)
+            raise ValueError('too many redirects')
+        except (requests.exceptions.RequestException, ValueError) as error:
+            return FetchResult(url, error=str(error))
 
     def filter_documents(self, urls):
         """Records the document URLs among ``urls``, normalised and deduplicated.
@@ -166,13 +201,17 @@ class WebScraper:
         Returns:
             None: Appends matching URLs to self.document_urls in place.
         """
+        # Rebuild for each call because get_document_urls exposes this mutable
+        # backing list. A persistent membership cache would become stale.
+        known = set(self.document_urls)
         for url in urls:
             candidate = self.normalise_url(url)
-            if not candidate or candidate in self.document_urls:
+            if not candidate or not self.is_valid_url(candidate) or candidate in known:
                 continue
             if self.is_document_url(candidate):
                 self.document_urls.append(candidate)
-                self.total_documents_found += 1  # Increment the document count
+                known.add(candidate)
+        self.total_documents_found = len(self.document_urls)
 
     def _visit(self, url, depth, queue, max_depth):
         """Fetches one page, records its documents and queues its crawl links.
@@ -186,7 +225,13 @@ class WebScraper:
         print(f"Scraping {url} at depth {depth}")
         self.visited_urls.add(url)
         self.total_scraped_pages += 1  # Increment the page count
-        links = self.get_all_links(url)
+        result = self.get_all_links(url)
+        if result.error is not None:
+            self.fetch_failures.append({'url': url, 'error': result.error})
+            print(f'Error fetching {url}: {result.error}')
+            return
+        self.successful_pages += 1
+        links = result.links
         self.filter_documents(links)
         if depth >= max_depth:
             return
@@ -223,6 +268,19 @@ class WebScraper:
                 progressed = True
             if not progressed:
                 break
+        self.truncated = any(queues)
+
+    def _result(self):
+        if self.fetch_failures and not self.successful_pages and not self.document_urls:
+            status = 'failed'
+        elif self.fetch_failures or self.truncated:
+            status = 'partial'
+        else:
+            status = 'successful' if self.document_urls else 'successful-empty'
+        return CrawlResult(
+            status, tuple(self.document_urls), self.successful_pages,
+            tuple(self.fetch_failures), self.truncated
+        )
 
     def crawl(self, url, depth=0, max_depth=11):
         """Crawls from one URL, spending the whole remaining budget on it.
@@ -237,10 +295,12 @@ class WebScraper:
             max_depth (int): The maximum depth to crawl.
         """
         seed = self.normalise_url(url)
-        if not seed:
-            return
+        if not seed or not self.is_valid_url(seed):
+            self.fetch_failures.append({'url': url, 'error': 'disallowed seed'})
+            return self._result()
         self.queued_urls.add(seed)
         self._crawl_queues([deque([(seed, depth)])], max_depth)
+        return self._result()
 
     def start_crawling(self, max_depth=11):
         """Crawls every configured seed page until the links or budget run out.
@@ -258,13 +318,16 @@ class WebScraper:
         for seed_url in self.seed_urls:
             queue = deque()
             seed = self.normalise_url(seed_url)
-            if seed and seed not in self.queued_urls:
+            if not seed or not self.is_valid_url(seed):
+                self.fetch_failures.append({'url': seed_url, 'error': 'disallowed seed'})
+            elif seed not in self.queued_urls:
                 queue.append((seed, 0))
                 self.queued_urls.add(seed)
             queues.append(queue)
         self._crawl_queues(queues, max_depth)
         print(f"Scraping completed. Total pages scraped: {self.total_scraped_pages}")
         print(f"Total documents found: {self.total_documents_found}")
+        return self._result()
 
     def get_document_urls(self):
         """Returns the list of document URLs found within the specified domain.
@@ -279,8 +342,9 @@ if __name__ == "__main__":
     # The web3 front end alone exposes no documents; the society site links them.
     seed_urls = [base_url, "https://www.isss.org/annual-meetings/"]
     scraper = WebScraper(base_url, seed_urls=seed_urls, max_pages=25)
-    scraper.start_crawling()
-    documents = scraper.get_document_urls()
-    print(f"Found {len(documents)} documents: ")
+    discovery = scraper.start_crawling()
+    documents = discovery.document_urls
+    print(f'Discovery {discovery.status}: {len(documents)} documents')
     for doc in documents:
         print(doc)
+    raise SystemExit(1 if discovery.status in {'failed', 'partial'} else 0)

@@ -28,38 +28,13 @@ documents, while the society site links the corpus, including legacy paths on
 
 ## Data flow
 
-1. **Web scraping** — `WebScraper` crawls from each configured seed
-   (`SEED_URLS`), following same-domain links (`*.isss.org`) up to `max_depth`
-   (default 11) and at most `MAX_PAGES` pages per run across every seed, and
-   collects URLs ending in `.pdf`, `.docx`, `.pptx`, or `.xlsx`. Seeds take
-   turns so one cannot spend the whole budget, and fragment, session, login,
-   feed and search URLs are normalised away or skipped (see the discovery
-   contract in [implementation-status.md](implementation-status.md#discovery-contract-stage-1)).
-2. **Document download** — `DocumentDownloader` downloads each discovered URL
-   into the download directory in 1 KiB chunks, skipping files that already
-   exist.
-3. **Metadata archiving** — `MetadataArchiver` appends one record per
-   downloaded document to `metadata.json` in the archive directory (see
-   [configuration.md](configuration.md) for the record schema).
-4. **File conversion** — `FileConverter` writes `text/<name>.txt` and, per PDF
-   page, `pages/<name>/page-NNNN.png` at 150 DPI into the converted directory.
-   A PDF page without a text layer is rendered and read with Tesseract. Office
-   documents produce the text artifact only. The full contract is in
-   [implementation-status.md](implementation-status.md#conversion-contract-stage-4).
-5. **OCR** — `OCRProcessor` reads `.jpg` images from an input directory and
-   writes the extracted text to one `.txt` file per image. It requires the
-   system Tesseract binary and stays a standalone stage: the pipeline's own
-   pages are PNG and its image-only PDF pages are already OCR'd by stage 4.
-6. **Figure extraction** — `FigureExtractor` finds figure-sized ink regions in
-   each page image, crops them to `<document>-fig-NNN.png`, and records for
-   every figure its page box and its caption candidate (the nearest text block
-   Tesseract reports on the page) in `figures.json`. The heuristic and its
-   limits are in
-   [implementation-status.md](implementation-status.md#figure-contract-stage-6).
-7. **Language analysis** — `LanguageAnalyzer` reads the `text/` directory and
-   writes `language_analysis.json` and `SUMMARY.md` with descriptive
-   statistics per document and for the corpus. The rules are in
-   [implementation-status.md](implementation-status.md#statistics-contract-stage-7).
+1. **Discovery:** seeds share the existing round-robin budget. HTTP(S) hostnames and every redirect are admitted before requests; results distinguish successful, successful-empty, partial, and failed discovery. Budget truncation is explicit.
+2. **Download:** each completed file has a `DownloadReceipt` binding source/final URLs, bytes, and original acquisition time. Same-volume staging and no-clobber publication prevent partial files from masquerading as completed downloads. Cache hits require matching receipt/content, not mere file existence.
+3. **Metadata:** a complete receipt batch is validated before one metadata-array publication. Cached receipts do not append duplicate events or gain new acquisition times.
+4. **Conversion:** the pipeline carries each acquisition receipt's expected hash and size into conversion and checks them before extraction as well as before publication. Immutable `.generations/<id>/` sets contain text, page images, and `record.json` source/output hashes. `active.json` atomically selects qualified successful sets. Failed, retired, stale, or corrupt generations are not current inputs; historical/unowned files are not deleted.
+5. **OCR:** standalone `.jpg` processing remains separate. Conversion uses actual Tesseract for image-only PDF pages; controlled tests do not qualify recognition accuracy.
+6. **Figures:** extraction consumes active conversion sets and publishes its own immutable generations selected by `active.json`, retaining boxes, caption candidates, source/output hashes, and historical records. Legacy `figures.json` is preserved history, not the current discovery source.
+7. **Language:** `LanguageAnalyzer` takes the converted root and reloads its active selection for each analysis, reading only qualified current text. Lowercased ASCII/apostrophe tokens, counters, weighted averages, and the most frequent words retain their fixed descriptive definitions.
 
 ## Orchestration and standalone entry points
 
@@ -82,7 +57,7 @@ run. All of them are gitignored.
 | --- | --- | --- |
 | `downloaded_documents/` | Download directory | `DocumentDownloader` |
 | `archived_documents/` | Archive directory (holds `metadata.json`) | `MetadataArchiver` |
-| `converted_documents/` | Converted output (`text/` and `pages/`) | `FileConverter` |
+| `converted_documents/` | Immutable conversion generations and `active.json` | `FileConverter` |
 | `ocr_texts/` | OCR text output (standalone demo; reserved in `main.py`) | `OCRProcessor` |
-| `extracted_figures/` | Figure images and `figures.json` | `FigureExtractor` |
+| `extracted_figures/` | Immutable figure generations and `active.json` | `FigureExtractor` |
 | `language_analysis/` | Statistics output (`language_analysis.json`, `SUMMARY.md`) | `LanguageAnalyzer` |

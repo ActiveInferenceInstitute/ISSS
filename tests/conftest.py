@@ -6,12 +6,16 @@ request, and none requires the system Tesseract binary (the OCR test replaces
 """
 
 import http.server
+import shutil
 import socket
 import threading
+from pathlib import Path
 from typing import ClassVar
 
 import pytest
 
+from document_downloader import DownloadReceipt
+from pipeline_artifacts import ArtifactStore, file_identity
 from web_scraper import WebScraper
 
 
@@ -101,3 +105,52 @@ def local_scraper():
             return "127.0.0.1" in url or super().is_valid_url(url)
 
     return LocalWebScraper
+
+
+@pytest.fixture
+def receipt_factory(tmp_path):
+    """Write actual fixture bytes and bind a deterministic acquisition receipt."""
+    def create(name='paper.pdf', payload=b'fixture', url=None, acquired=None):
+        path = tmp_path / 'downloaded_documents' / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        source_url = url or f'https://web3.isss.org/{name}'
+        return DownloadReceipt(
+            source_url, source_url, name, str(path), **file_identity(path),
+            download_date=acquired or '2020-01-02T03:04:05+00:00',
+        )
+    return create
+
+
+@pytest.fixture
+def publish_conversion(tmp_path):
+    """Publish real fixture text/images through the same immutable-set protocol."""
+    def publish(name='paper.pdf', text='fixture', pages=()):
+        root = tmp_path / 'converted_documents'
+        source = tmp_path / 'fixture_sources' / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(text.encode('utf-8') + b'\0' + b''.join(
+            Path(page).read_bytes() for page in pages
+        ))
+        store = ArtifactStore(root, 'conversion')
+        with store.stage() as (generation, staged):
+            (staged / 'text').mkdir()
+            text_name = Path(name).stem + '.txt'
+            (staged / 'text' / text_name).write_text(text, encoding='utf-8')
+            (staged / 'pages').mkdir()
+            prefix = f'.generations/{generation}/'
+            page_files = []
+            for number, page in enumerate(pages, 1):
+                relative = f'pages/page-{number:04d}.png'
+                shutil.copyfile(page, staged / relative)
+                page_files.append(prefix + relative)
+            record = store.publish(staged, {
+                'document_name': name, 'generation': generation,
+                'source': {'path': str(source), **file_identity(source)},
+                'text_file': prefix + 'text/' + text_name,
+                'page_files': page_files, 'page_count': len(page_files),
+                'characters': len(text),
+            })
+        store.commit()
+        return root, record
+    return publish

@@ -69,11 +69,14 @@ def _outside_fences(text: str) -> str:
 
 
 def _outside_inline_code(text: str) -> str:
-    runs = [match for match in re.finditer(r"`+", text) if not _escaped(text, match.start())]
+    runs = list(re.finditer(r"`+", text))
     pieces = []
     cursor = index = 0
     while index < len(runs):
         start = runs[index]
+        if _escaped(text, start.start()):
+            index += 1
+            continue
         closing = next(
             (end for end in range(index + 1, len(runs))
              if len(runs[end].group()) == len(start.group())

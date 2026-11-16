@@ -54,6 +54,7 @@ class LanguageAnalyzer:
 
     def analyze_language(self):
         """Aggregate qualified current text without retaining corpus token lists."""
+        self.store = ArtifactStore(self.store.root, 'conversion')
         records = []
         corpus_counts = Counter()
         for converted in self.store.active_documents():

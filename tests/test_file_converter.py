@@ -362,3 +362,21 @@ def test_failed_manifest_publication_keeps_old_manifest_and_rejects_stale_source
     assert (converted / 'active.json').read_bytes() == manifest
     assert (converted / previous['text_file']).read_text() == 'first generation'
     assert ArtifactStore(converted, 'conversion').active_documents() == []
+
+
+def test_conversion_rejects_replaced_acquisition_without_reidentifying_it(
+    tmp_path, receipt_factory
+):
+    source = tmp_path / 'downloaded_documents' / 'paper.docx'
+    receipt = receipt_factory('paper.docx', b'not read before identity admission')
+    source.write_bytes(b'replacement bytes')
+    converted = tmp_path / 'converted'
+    converter = FileConverter(source.parent, converted)
+    assert converter.convert_files(
+        [source],
+        expected_identities={
+            receipt.document_name: {'sha256': receipt.sha256, 'size': receipt.size}
+        },
+    ) == []
+    assert 'acquisition content changed' in converter.store.failures['paper.docx']
+    assert ArtifactStore(converted, 'conversion').active_documents() == []

@@ -130,3 +130,44 @@ def test_download_batch_returns_successful_peers_and_explicit_failures(
         'source_url': 'https://isss.org/missing.pdf', 'error': 'HTTP 500 fixture'
     }]
     assert receipt.validate() == receipt
+
+
+def test_pipeline_keeps_acquisition_identity_when_later_batch_input_is_replaced(
+    tmp_path, monkeypatch, receipt_factory
+):
+    monkeypatch.chdir(tmp_path)
+    receipts = [
+        receipt_factory('a.docx', _docx_bytes('First acquired document.')),
+        receipt_factory('b.docx', _docx_bytes('Second acquired document.')),
+    ]
+    discovery = CrawlResult(
+        status='successful',
+        document_urls=tuple(receipt.source_url for receipt in receipts),
+        successful_pages=1, failures=(), truncated=False,
+    )
+    monkeypatch.setattr(pipeline.WebScraper, 'start_crawling', lambda self: discovery)
+
+    async def download(urls):
+        return receipts, []
+
+    monkeypatch.setattr(pipeline, '_download', download)
+    original = pipeline.FileConverter._convert_office
+
+    def replace_later_input(self, document_path):
+        text = original(self, document_path)
+        if document_path.endswith('a.docx'):
+            with open(receipts[1].document_path, 'wb') as handle:
+                handle.write(_docx_bytes('Unreceipted replacement document.'))
+        return text
+
+    monkeypatch.setattr(pipeline.FileConverter, '_convert_office', replace_later_input)
+    assert pipeline.main() == 1
+    archive = json.loads((tmp_path / 'archived_documents' / 'metadata.json').read_text())
+    assert {row['document_name']: row['sha256'] for row in archive} == {
+        receipt.document_name: receipt.sha256 for receipt in receipts
+    }
+    store = ArtifactStore(tmp_path / 'converted_documents', 'conversion')
+    assert [row['document_name'] for row in store.active_documents()] == ['a.docx']
+    assert 'acquisition content changed' in store.failures['b.docx']
+    report = json.loads((tmp_path / 'language_analysis' / 'language_analysis.json').read_text())
+    assert [row['document_name'] for row in report['documents']] == ['a.txt']

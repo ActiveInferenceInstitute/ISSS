@@ -144,3 +144,14 @@ def test_heading_code_words_and_duplicate_slugs_survive_fence_filtering(tmp_path
         '[one](#heading-code)\n[two](#heading-code-1)\n[bad](#hidden)\n'
     )
     assert check_file(page, tmp_path, {}) == [f'{page}:8: missing anchor #hidden in ']
+
+
+@pytest.mark.parametrize('text', [
+    '`\\` [broken](missing.md) `next`',
+    '``\\`` [broken](missing.md) ``next``',
+    '\\` [broken](missing.md) `next`',
+])
+def test_backslashes_do_not_escape_closing_code_delimiters(tmp_path, text):
+    page = tmp_path / 'page.md'
+    page.write_text(text + '\n')
+    assert check_file(page, tmp_path, {}) == [f"{page}:1: missing target 'missing.md'"]

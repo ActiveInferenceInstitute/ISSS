@@ -174,3 +174,23 @@ def test_repeated_tokens_keep_exact_counts_and_deterministic_ties(tmp_path, publ
         {'word': 'alpha', 'count': 4000}, {'word': 'beta', 'count': 4000},
         {'word': 'gamma', 'count': 1},
     ]
+
+
+@pytest.mark.parametrize('change', ['retire', 'replace', 'remove'])
+def test_reused_analyzer_reloads_current_selection(tmp_path, publish_conversion, change):
+    converted, previous = publish_conversion('old.pdf', 'Old document.')
+    old_text = converted / previous['text_file']
+    analyzer = LanguageAnalyzer(converted, tmp_path / 'analysis')
+    assert analyzer.analyze_language()['document_count'] == 1
+    if change == 'replace':
+        publish_conversion('new.pdf', 'Replacement document.')
+    store = ArtifactStore(converted, 'conversion')
+    store.select(['new.pdf'] if change == 'replace' else [])
+    store.commit()
+    if change == 'remove':
+        (converted / 'active.json').unlink()
+    report = analyzer.analyze_language()
+    assert [record['document_name'] for record in report['documents']] == (
+        ['new.txt'] if change == 'replace' else []
+    )
+    assert old_text.read_text() == 'Old document.'

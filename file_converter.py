@@ -50,8 +50,8 @@ class FileConverter:
             for name, record in self.store.documents.items()
         }
 
-    def convert_files(self, document_paths=None):
-        """Activate only this invocation's successful, explicitly selected inputs."""
+    def convert_files(self, document_paths=None, *, expected_identities=None):
+        """Activate selected inputs, retaining supplied acquisition content identities."""
         paths = (
             list(self.download_path.iterdir()) if document_paths is None
             else [Path(path).absolute() for path in document_paths]
@@ -69,7 +69,10 @@ class FileConverter:
         }
         converted = []
         for path in paths:
-            record = self._convert_document(path)
+            expected = (
+                expected_identities[path.name] if expected_identities is not None else None
+            )
+            record = self._convert_document(path, expected)
             if record is not None:
                 converted.append(record)
         self.store.commit()
@@ -82,12 +85,14 @@ class FileConverter:
         self.store.commit()
         return record
 
-    def _convert_document(self, path):
+    def _convert_document(self, path, expected_identity=None):
         name = path.name
         try:
             if path.parent.resolve() != self.download_path.resolve():
                 raise ValueError('source is outside the selected download directory')
             source_identity = file_identity(path)
+            if expected_identity is not None and source_identity != expected_identity:
+                raise ValueError('acquisition content changed before conversion')
             text_name = self._register_text_name(name)
             with self.store.stage() as (generation, staged):
                 pages = staged / 'pages'

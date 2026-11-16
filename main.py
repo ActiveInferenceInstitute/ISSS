@@ -73,7 +73,13 @@ def main():
     MetadataArchiver(ARCHIVE_PATH).archive_receipts(receipts)
 
     converter = FileConverter(DOWNLOAD_PATH, CONVERTED_PATH)
-    converted = converter.convert_files(receipt.document_path for receipt in receipts)
+    converted = converter.convert_files(
+        (receipt.document_path for receipt in receipts),
+        expected_identities={
+            receipt.document_name: {'sha256': receipt.sha256, 'size': receipt.size}
+            for receipt in receipts
+        },
+    )
     print(f'Converted {len(converted)} document(s) into {CONVERTED_PATH}.')
     figures = FigureExtractor(CONVERTED_PATH, FIGURE_OUTPUT_PATH).extract_figures()
     language = LanguageAnalyzer(CONVERTED_PATH, LANGUAGE_ANALYSIS_OUTPUT_PATH).analyze_language()

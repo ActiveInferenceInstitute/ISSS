@@ -59,8 +59,8 @@ carries the exact keys, versions and arms.
 ## GNN pin
 
 The canonical pin is `.github/gnn-pin.json`, schema `gnn-importer-pin/v1`. It
-pins `ActiveInferenceInstitute/Generalized_Notation_Notation` at `v5.0.3`,
-revision `8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1`, recorded 2026-11-12.
+pins `ActiveInferenceInstitute/Generalized_Notation_Notation` at `v5.1.0`,
+revision `75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf`, recorded 2026-11-16.
 [.github/GNN.md](../.github/GNN.md) is the pointer that records what the
 conformance job parses, and `scripts/gnn_conformance.py` is the check itself.
 

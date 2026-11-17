@@ -63,8 +63,8 @@ jobs:
 # 127.0.0.1, stubs every HTTP client, and replaces the OCR engine, so no job
 # needs the system Tesseract binary, network access or any secret.
 
-  # GNN pin: .github/gnn-pin.json (schema gnn-importer-pin/v1, v5.0.3,
-  # 8f293d9ba810e6eda5c09842d9c7ed9ffa5f92c1). What the job parses is
+  # GNN pin: .github/gnn-pin.json (schema gnn-importer-pin/v1, v5.1.0,
+  # 75c834bd8519dc7b5adc4d24f16bf393cfd1ecdf). What the job parses is
   # recorded in .github/GNN.md; the check itself is scripts/gnn_conformance.py.
   gnn-conformance:
     name: gnn conformance (pinned)
